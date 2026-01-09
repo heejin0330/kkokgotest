@@ -8,13 +8,22 @@ import {
 import { Circle, X, Sparkles, TrendingUp, Phone, Share2 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
+// 타입 정의
+type HollandType = "R" | "I" | "A" | "S" | "E" | "C";
+
+interface Question {
+  id: string;
+  type: HollandType;
+  text: string;
+}
+
 // Supabase 클라이언트 초기화
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const questionBank = [
+const questionBank: Question[] = [
   {
     id: "R_01",
     type: "R",
@@ -317,7 +326,7 @@ const questionBank = [
   },
 ];
 
-const resultMapping = {
+const resultMapping: Record<HollandType, { title: string; emoji: string; desc: string }> = {
   R: {
     title: "마이더스의 손",
     emoji: "🛠️",
@@ -351,7 +360,7 @@ const resultMapping = {
 };
 
 // 홀랜드 유형 한글명
-const hollandTypes = {
+const hollandTypes: Record<HollandType, string> = {
   R: "실재형",
   I: "탐구형",
   A: "예술형",
@@ -361,7 +370,7 @@ const hollandTypes = {
 };
 
 // 학과 추천 풀 (이색 3개 + 일반 2개 = 총 5개)
-const recommendMajors = {
+const recommendMajors: Record<HollandType, string[]> = {
   R: [
     "🚁 드론공간정보과",
     "🐴 말산업육성과",
@@ -407,9 +416,9 @@ const recommendMajors = {
 };
 
 // 배열에서 랜덤하게 n개 선택하는 함수
-function getRandomMajors(type, count = 2) {
+function getRandomMajors(type: HollandType, count: number = 2): string[] {
   const majors = [...recommendMajors[type]];
-  const selected = [];
+  const selected: string[] = [];
 
   for (let i = 0; i < count && majors.length > 0; i++) {
     const randomIndex = Math.floor(Math.random() * majors.length);
@@ -426,14 +435,14 @@ const loadingMessages = [
 ];
 
 function useTestLogic() {
-  const [questions, setQuestions] = useState([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [scores, setScores] = useState({ R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 });
-  const [startTime, setStartTime] = useState(null);
+  const [scores, setScores] = useState<Record<HollandType, number>>({ R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 });
+  const [startTime, setStartTime] = useState<number | null>(null);
 
   useEffect(() => {
-    const types = ["R", "I", "A", "S", "E", "C"];
-    const selected = [];
+    const types: HollandType[] = ["R", "I", "A", "S", "E", "C"];
+    const selected: Question[] = [];
 
     types.forEach((type) => {
       const filtered = questionBank.filter((q) => q.type === type);
@@ -444,9 +453,9 @@ function useTestLogic() {
     setQuestions(selected.sort(() => Math.random() - 0.5));
   }, []);
 
-  const handleSwipe = (direction, questionType) => {
+  const handleSwipe = (direction: string, questionType: HollandType) => {
     if (direction === "right") {
-      const elapsed = Date.now() - startTime;
+      const elapsed = Date.now() - (startTime || Date.now());
       const points = elapsed < 2000 ? 1.5 : 1;
       setScores((prev) => ({
         ...prev,
@@ -462,8 +471,8 @@ function useTestLogic() {
     }
   };
 
-  const getResult = () => {
-    const entries = Object.entries(scores);
+  const getResult = (): HollandType => {
+    const entries = Object.entries(scores) as [HollandType, number][];
     const maxScore = Math.max(...entries.map(([, score]) => score));
     const winners = entries.filter(([, score]) => score === maxScore);
     const [type] = winners[Math.floor(Math.random() * winners.length)];
@@ -500,7 +509,7 @@ function Header() {
   );
 }
 
-function StartScreen({ onStart }) {
+function StartScreen({ onStart }: { onStart: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -538,7 +547,7 @@ function StartScreen({ onStart }) {
   );
 }
 
-function ProgressBar({ progress }) {
+function ProgressBar({ progress }: { progress: number }) {
   const [loadingMessage, setLoadingMessage] = React.useState(
     loadingMessages[0]
   );
@@ -575,12 +584,12 @@ function ProgressBar({ progress }) {
   );
 }
 
-function SwipeCard({ question, onSwipe }) {
+function SwipeCard({ question, onSwipe }: { question: Question; onSwipe: (direction: string) => void }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-30, 30]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
 
-  const handleDragEnd = (_, info) => {
+  const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
     if (Math.abs(info.offset.x) > 100) {
       onSwipe(info.offset.x > 0 ? "right" : "left");
     }
@@ -604,7 +613,7 @@ function SwipeCard({ question, onSwipe }) {
   );
 }
 
-function ResultView({ resultType, onRestart }) {
+function ResultView({ resultType, onRestart }: { resultType: HollandType; onRestart: () => void }) {
   const [phone, setPhone] = useState("");
   const [showToast, setShowToast] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -615,7 +624,7 @@ function ResultView({ resultType, onRestart }) {
   const [selectedMajors] = useState(() => getRandomMajors(resultType, 2));
 
   // 전화번호 유효성 검사 함수
-  const validatePhone = (phoneNumber) => {
+  const validatePhone = (phoneNumber: string) => {
     if (!phoneNumber || phoneNumber.trim() === "") {
       return { valid: false, message: "전화번호를 입력해주세요." };
     }
@@ -659,7 +668,7 @@ function ResultView({ resultType, onRestart }) {
       const majorText = selectedMajors.join(", ");
 
       // Supabase에 데이터 저장
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("pre_orders")
         .insert([
           {
@@ -703,7 +712,7 @@ function ResultView({ resultType, onRestart }) {
         setTimeout(() => setShowToast(false), 3000);
       }
     } catch (err) {
-      if (err.name !== "AbortError") {
+      if ((err as Error).name !== "AbortError") {
         await navigator.clipboard.writeText(window.location.href);
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
@@ -893,7 +902,7 @@ function ResultView({ resultType, onRestart }) {
 }
 
 // AI 분석 로딩 화면 컴포넌트
-function AnalyzingView({ onComplete }) {
+function AnalyzingView({ onComplete }: { onComplete: () => void }) {
   const [progressValue, setProgressValue] = useState(0);
   const [textIndex, setTextIndex] = useState(0);
 
@@ -998,7 +1007,7 @@ function AnalyzingView({ onComplete }) {
 }
 
 export default function App() {
-  const [stage, setStage] = useState("start");
+  const [stage, setStage] = useState<"start" | "test" | "analyzing" | "result">("start");
   const { questions, currentIndex, handleSwipe, getResult, progress } =
     useTestLogic();
 
@@ -1011,7 +1020,7 @@ export default function App() {
     }
   }, [isComplete, stage]);
 
-  const handleAnswer = (answer) => {
+  const handleAnswer = (answer: string) => {
     if (currentQuestion) {
       handleSwipe(answer, currentQuestion.type);
     }
