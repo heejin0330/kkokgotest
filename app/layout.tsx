@@ -14,15 +14,17 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "꼭고 - 1분만에 내적성에 맞는 특성화고 찾기",
-  description: "AI기반 진로테스트로 나에게 맞는 특성화고, 마이스터고를 찾아보세요",
+  description:
+    "AI기반 진로테스트로 나에게 맞는 특성화고, 마이스터고를 찾아보세요",
   openGraph: {
     title: "꼭고 - 1분만에 내적성에 맞는 특성화고 찾기",
-    description: "AI기반 진로테스트로 나에게 맞는 특성화고, 마이스터고를 찾아보세요",
+    description:
+      "AI기반 진로테스트로 나에게 맞는 특성화고, 마이스터고를 찾아보세요",
     url: "https://kkokgo-landing.vercel.app",
     siteName: "꼭고",
     images: [
       {
-        url: "https://kkokgo-landing.vercel.app/og-image.png",
+        url: "https://kkokgo-landing.vercel.app/og-image-2.png",
         width: 1200,
         height: 630,
         alt: "꼭고 - AI 기반 특성화고 매칭 플랫폼",
@@ -34,8 +36,9 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "꼭고 - 1분만에 내적성에 맞는 특성화고 찾기",
-    description: "AI기반 진로테스트로 나에게 맞는 특성화고, 마이스터고를 찾아보세요",
-    images: ["https://kkokgo-landing.vercel.app/og-image.png"],
+    description:
+      "AI기반 진로테스트로 나에게 맞는 특성화고, 마이스터고를 찾아보세요",
+    images: ["https://kkokgo-landing.vercel.app/og-image-2.png"],
   },
 };
 
