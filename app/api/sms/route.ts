@@ -10,32 +10,46 @@ const messageService = new coolsms(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { phone, resultType, resultTitle, resultUrl } = body;
+    // resultUrl은 이제 안 받습니다. 서버에서 직접 만듭니다.
+    const { phone, resultType, resultTitle } = body;
+
+    if (!phone || !resultTitle) {
+      return NextResponse.json(
+        { success: false, error: "필수 정보 누락" },
+        { status: 400 }
+      );
+    }
 
     // 전화번호 하이픈 제거
     const cleanPhone = phone.replace(/-/g, "");
 
-    // 보낼 메시지 내용 구성 (LMS: 장문 문자)
-    const messageText = `[꼭고] 진로 분석 결과 도착!
+    // ▼▼▼ [핵심 수정] 무조건 이 짧은 주소로 만듭니다 ▼▼▼
+    // 대표님의 실제 배포 도메인을 여기에 적어주세요. (마지막 / 빼고)
+    const BASE_URL = "https://kkokgo-landing.vercel.app";
 
-당신신의 진로 유형은:
-"${resultTitle}" 입니다.
+    // 전화번호별 개인화된 링크 생성 (타입 꼬리표 붙이기)
+    const shortLink = `${BASE_URL}/?type=${resultType}`;
+
+    // 보낼 메시지 내용 구성 (LMS: 장문 문자)
+    const messageText = `[꼭고] 진로 분석 리포트 📩
+
+자녀분의 진로 유형:
+"${resultTitle}"
 
 상위 1% 마이스터고 추천 정보와
 숨겨진 합격 전략을 확인하세요.
 
-👉 결과 리포트 보기:
-${resultUrl}
+👇 리포트 확인하기
+${shortLink}
 
-*본 문자는 요청에 의해 발송되었습니다.`;
+*무료 진단 요청에 의해 발송됨`;
 
     // 실제 발송 요청
     const response = await messageService.sendOne({
       to: cleanPhone,
       from: process.env.COOLSMS_SENDER_PHONE!, // 발신번호 (사전 등록 필수)
       text: messageText,
-      type: "LMS", // 장문 메시지로 명시적 지정 (90바이트 초과)
-      autoTypeDetect: false, // 타입을 수동으로 지정하므로 자동 감지 비활성화
+      autoTypeDetect: true, // 메시지 길이에 따라 SMS/LMS 자동 감지
     });
 
     console.log("문자 발송 성공:", response);

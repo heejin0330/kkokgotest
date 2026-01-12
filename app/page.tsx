@@ -8,7 +8,7 @@ import {
   useTransform,
   type PanInfo,
 } from "framer-motion";
-import { Circle, X, Sparkles, TrendingUp, Phone, Share2 } from "lucide-react";
+import { Circle, X, Sparkles, TrendingUp, Phone, Share2, CheckCircle, Building2, Briefcase, GraduationCap } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
 // ------------------------------------------------------------------
@@ -826,9 +826,11 @@ function SwipeCard({
 
 function ResultView({
   resultType,
+  initialUnlocked = false, // 외부에서 잠금 해제 여부를 받아옴 (기본값은 false)
   onRestart,
 }: {
   resultType: HollandType;
+  initialUnlocked?: boolean;
   onRestart: () => void;
 }) {
   // 1. 통합 데이터에서 가져오기 (방어 코드 추가)
@@ -872,7 +874,7 @@ function ResultView({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // [3] 잠금 해제 및 리포트 전송 로직
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
 
   const handleUnlock = async () => {
     // 1. 유효성 검사
@@ -907,10 +909,7 @@ function ResultView({
 
       if (error) throw error;
 
-      // 3. [핵심] 실제 문자 발송 API 호출 🚀
-      // URL에 type 파라미터가 포함된 공유 링크 생성
-      const shareUrl = `${window.location.origin}${window.location.pathname}?type=${resultType}`;
-
+      // 3. 문자 발송 (API 호출) 🚀
       const smsResponse = await fetch("/api/sms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -918,7 +917,7 @@ function ResultView({
           phone: cleanPhone,
           resultType: resultType,
           resultTitle: data.title, // 예: "천재 해커"
-          resultUrl: shareUrl, // 결과 페이지 링크 (type 파라미터 포함)
+          // resultUrl: window.location.href  <-- 이거 이제 삭제합니다! (서버에서 만듦)
         }),
       });
 
@@ -1042,53 +1041,145 @@ function ResultView({
       <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-5 mb-3 sm:mb-4 shadow-2xl">
         <div className="text-center mb-3">
           <p className="text-xs text-lime-400 font-bold mb-1">
-            ✨ AI가 분석한 맞춤 추천 학과
+            {isUnlocked ? "🎉 맞춤 추천 학과 전체 공개!" : "✨ AI가 분석한 맞춤 추천 학과"}
           </p>
         </div>
         <div className="flex gap-2 justify-center flex-wrap">
-          {selectedMajors.map((major: string, index: number) => (
-            <motion.span
-              key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.15 }}
-              className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm border border-lime-400/30"
-            >
-              {major}
-            </motion.span>
-          ))}
-          {[1, 2, 3].map((_, index) => (
-            <motion.span
-              key={`locked-${index}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (index + 2) * 0.15 }}
-              className="relative px-3 sm:px-4 py-2 bg-white/5 rounded-full text-gray-500 font-bold text-xs sm:text-sm border border-white/10"
-            >
-              <span className="blur-[3px] select-none">🔒 ??? 학과</span>
-              <span className="absolute inset-0 flex items-center justify-center text-gray-400">
-                🔒
-              </span>
-            </motion.span>
-          ))}
+          {isUnlocked ? (
+            // 🔓 해제됨: 5개 학과 전체 표시
+            data.majors.map((major: string, index: number) => (
+              <motion.span
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm border border-lime-400/30"
+              >
+                {major}
+              </motion.span>
+            ))
+          ) : (
+            // 🔒 잠김: 2개 학과 + 자물쇠 3개
+            <>
+              {selectedMajors.map((major: string, index: number) => (
+                <motion.span
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.15 }}
+                  className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm border border-lime-400/30"
+                >
+                  {major}
+                </motion.span>
+              ))}
+              {[1, 2, 3].map((_, index) => (
+                <motion.span
+                  key={`locked-${index}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: (index + 2) * 0.15 }}
+                  className="relative px-3 sm:px-4 py-2 bg-white/5 rounded-full text-gray-500 font-bold text-xs sm:text-sm border border-white/10"
+                >
+                  <span className="blur-[3px] select-none">🔒 ??? 학과</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-gray-400">
+                    🔒
+                  </span>
+                </motion.span>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
-      <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-2xl">
+      {/* ========== 조건부 렌더링: 잠금 해제 시 상세 리포트 / 잠금 시 전화번호 입력 ========== */}
+      {isUnlocked ? (
+        // 🔓 해제됨: 상세 진학 리포트 표시
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md bg-gradient-to-br from-lime-400/10 to-emerald-400/10 backdrop-blur-xl border border-lime-400/30 rounded-3xl p-5 sm:p-6 mb-4 sm:mb-6 shadow-2xl"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="w-6 h-6 text-lime-400" />
+            <h3 className="text-lg sm:text-xl font-black text-white">
+              📋 맞춤 진학 리포트
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            {/* 추천 학교 */}
+            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
+              <GraduationCap className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-400 mb-1">추천 학교</p>
+                <p className="text-white font-bold text-sm sm:text-base">
+                  {data.report.recommendSchool}
+                </p>
+              </div>
+            </div>
+
+            {/* NCS 분야 */}
+            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
+              <Briefcase className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-400 mb-1">NCS 직무 분야</p>
+                <p className="text-white font-bold text-sm sm:text-base">
+                  {data.report.ncsField}
+                </p>
+              </div>
+            </div>
+
+            {/* 취업 통계 */}
+            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
+              <Building2 className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-400 mb-1">취업 현황</p>
+                <p className="text-white font-bold text-sm sm:text-base">
+                  취업률 {data.report.stats.employmentRate}
+                </p>
+                <p className="text-gray-300 text-xs mt-1">
+                  {data.report.stats.companies}
+                </p>
+                <p className="text-lime-400 text-xs mt-1 font-bold">
+                  💰 {data.report.stats.salary}
+                </p>
+              </div>
+            </div>
+
+            {/* 전문가 코멘트 */}
+            <div className="p-4 bg-lime-400/10 rounded-2xl border border-lime-400/20">
+              <p className="text-xs text-lime-400 font-bold mb-2">💡 진로 전문가 코멘트</p>
+              <p className="text-white text-sm leading-relaxed">
+                {data.report.manual}
+              </p>
+            </div>
+          </div>
+
+          {/* 공유 버튼 */}
+          <button
+            onClick={handleShare}
+            className="w-full mt-4 py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(163,230,53,0.4)]"
+          >
+            <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
+            친구에게 내 결과 공유하기 🔗
+          </button>
+        </motion.div>
+      ) : (
+        // 🔒 잠김: 전화번호 입력 폼
+        <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-2xl">
+        {/* ▼▼▼ 문구 수정 영역 ▼▼▼ */}
         <div className="flex items-center gap-3 mb-4">
           <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-lime-400 flex-shrink-0" />
           <div className="text-white font-bold text-sm sm:text-base leading-snug">
             <p className="mb-1">
-              이 학과에 <span className="text-lime-400">안정권</span>으로 합격할
-              수 있을까?
+              고등학교 <span className="text-lime-400">꼭 일반고</span>를 가야할까?
             </p>
             <p className="text-xs sm:text-sm text-gray-300">
-              내 성적으로 갈 수 있는{" "}
-              <span className="text-lime-400">마이스터고, 특성화고</span> 합격
-              리스트 받기 👇
+              내 적성에 맞는 <span className="text-lime-400">마이스터고, 특성화고</span> 추천리스트 받기 👇
             </p>
           </div>
         </div>
+        {/* ▲▲▲ 문구 수정 완료 ▲▲▲ */}
 
         <div className="flex gap-2 mb-3">
           <div className="flex-1 relative">
@@ -1202,6 +1293,7 @@ function ResultView({
           친구에게 내 결과 자랑하기 🔗
         </button>
       </div>
+      )}
 
       {/* (아래 Toast, SuccessPopup 등 나머지 코드는 기존과 동일) */}
       <AnimatePresence>
@@ -1371,6 +1463,9 @@ export default function Home() {
 
   // URL에서 가져온 결과 타입 또는 테스트 완료 후 계산된 결과 타입
   const [finalResultType, setFinalResultType] = useState<HollandType | null>(null);
+  
+  // [추가] 링크로 접속했는지 여부 체크 (공유 링크 → 자동 잠금 해제)
+  const [isSharedLink, setIsSharedLink] = useState(false);
 
   const currentQuestion = questions[currentIndex];
   const isTestComplete = currentIndex >= questions.length && questions.length > 0;
@@ -1384,6 +1479,7 @@ export default function Home() {
       // 꼬리표가 있고, 유효한 타입(R,I,A,S,E,C)이라면 바로 결과 화면으로 점프
       if (isValidHollandType(typeParam)) {
         setFinalResultType(typeParam);
+        setIsSharedLink(true); // [핵심] 링크로 접속했음을 표시
         setStage("result");
       }
     }
@@ -1395,6 +1491,7 @@ export default function Home() {
       // 결과 계산 (scores가 최신 상태일 때)
       const calculatedType = getResult();
       setFinalResultType(calculatedType);
+      setIsSharedLink(false); // 직접 테스트했으므로 잠금 상태로 시작
       setStage("analyzing");
     }
   }, [isTestComplete, stage, getResult]);
@@ -1424,6 +1521,7 @@ export default function Home() {
     }
     // 상태 초기화
     setFinalResultType(null);
+    setIsSharedLink(false);
     resetTest();
     setStage("start");
   }, [resetTest]);
@@ -1538,6 +1636,7 @@ export default function Home() {
               >
                 <ResultView
                   resultType={finalResultType}
+                  initialUnlocked={isSharedLink} // [핵심] 링크로 왔으면 true → 자동 잠금 해제!
                   onRestart={handleRestart}
                 />
               </motion.div>
