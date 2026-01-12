@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   motion,
   AnimatePresence,
@@ -54,9 +54,17 @@ interface UseTestLogicReturn {
   handleSwipe: (direction: string, questionType: HollandType) => void;
   getResult: () => HollandType;
   progress: number;
+  resetTest: () => void;
 }
 
-// page.tsx 상단 (컴포넌트 바깥)
+// ------------------------------------------------------------------
+// 유효한 Holland 타입인지 검증하는 헬퍼 함수
+// ------------------------------------------------------------------
+const VALID_HOLLAND_TYPES: HollandType[] = ["R", "I", "A", "S", "E", "C"];
+
+function isValidHollandType(value: string | null): value is HollandType {
+  return value !== null && VALID_HOLLAND_TYPES.includes(value as HollandType);
+}
 
 // 통합 결과 데이터 (RESULT_DATA)
 const RESULT_DATA: ResultDataMap = {
@@ -215,7 +223,7 @@ const PacmanProgress = ({
   total: number;
 }) => {
   // 진행률 계산 (0% ~ 100%)
-  const progress = (current / total) * 100;
+  const progress = total > 0 ? (current / total) * 100 : 0;
 
   return (
     <div className="w-full max-w-md mx-auto mb-8 px-2">
@@ -598,6 +606,18 @@ function getRandomMajors(type: HollandType, count = 2): string[] {
   return selected;
 }
 
+// 질문 셔플 함수 (재사용 가능)
+function generateShuffledQuestions(): Question[] {
+  const types: HollandType[] = ["R", "I", "A", "S", "E", "C"];
+  const selected: Question[] = [];
+  types.forEach((type) => {
+    const filtered = questionBank.filter((q) => q.type === type);
+    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+    selected.push(...shuffled.slice(0, 2));
+  });
+  return selected.sort(() => Math.random() - 0.5);
+}
+
 const loadingMessages = [
   "🏫 전국 마이스터고/특성화고 커리큘럼 분석 중...",
   "💼 졸업생 실제 취업 데이터 대조 중...",
@@ -620,51 +640,62 @@ function useTestLogic(): UseTestLogicReturn {
   });
   const [startTime, setStartTime] = useState<number | null>(null);
 
+  // 초기 질문 로드
   useEffect(() => {
-    const types: HollandType[] = ["R", "I", "A", "S", "E", "C"];
-    const selected: Question[] = [];
-    types.forEach((type) => {
-      const filtered = questionBank.filter((q) => q.type === type);
-      const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-      selected.push(...shuffled.slice(0, 2));
-    });
-    setQuestions(selected.sort(() => Math.random() - 0.5));
+    setQuestions(generateShuffledQuestions());
   }, []);
 
-  const handleSwipe = (direction: string, questionType: HollandType) => {
-    if (direction === "right") {
-      const elapsed = Date.now() - (startTime || Date.now());
-      const points = elapsed < 2000 ? 1.5 : 1;
-      setScores((prev) => ({
-        ...prev,
-        [questionType]: prev[questionType] + points,
-      }));
-    }
-    if (currentIndex < questions.length) {
+  const handleSwipe = useCallback(
+    (direction: string, questionType: HollandType) => {
+      if (direction === "right") {
+        const elapsed = Date.now() - (startTime || Date.now());
+        const points = elapsed < 2000 ? 1.5 : 1;
+        setScores((prev) => ({
+          ...prev,
+          [questionType]: prev[questionType] + points,
+        }));
+      }
       setCurrentIndex((prev) => prev + 1);
       setStartTime(Date.now());
-    }
-  };
+    },
+    [startTime]
+  );
 
-  const getResult = (): HollandType => {
+  // scores를 의존성에 포함하여 최신 값 사용
+  const getResult = useCallback((): HollandType => {
     const entries = Object.entries(scores) as [HollandType, number][];
     const maxScore = Math.max(...entries.map(([, score]) => score));
     const winners = entries.filter(([, score]) => score === maxScore);
     const [type] = winners[Math.floor(Math.random() * winners.length)];
     return type;
-  };
+  }, [scores]);
+
+  // 테스트 리셋 함수
+  const resetTest = useCallback(() => {
+    setQuestions(generateShuffledQuestions());
+    setCurrentIndex(0);
+    setScores({ R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 });
+    setStartTime(null);
+  }, []);
 
   useEffect(() => {
-    if (questions.length > 0) setStartTime(Date.now());
-  }, [questions]);
+    if (questions.length > 0 && startTime === null) {
+      setStartTime(Date.now());
+    }
+  }, [questions, startTime]);
+
+  const progress = useMemo(
+    () => (questions.length > 0 ? (currentIndex / questions.length) * 100 : 0),
+    [currentIndex, questions.length]
+  );
 
   return {
     questions,
     currentIndex,
     handleSwipe,
     getResult,
-    progress:
-      questions.length > 0 ? (currentIndex / questions.length) * 100 : 0,
+    progress,
+    resetTest,
   };
 }
 
@@ -800,8 +831,33 @@ function ResultView({
   resultType: HollandType;
   onRestart: () => void;
 }) {
-  // 1. 통합 데이터에서 가져오기
+  // 1. 통합 데이터에서 가져오기 (방어 코드 추가)
   const data = RESULT_DATA[resultType];
+
+  // 유효하지 않은 resultType인 경우 에러 화면 표시
+  if (!data) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-full flex flex-col items-center justify-center p-4 sm:p-6 py-8 text-center"
+      >
+        <div className="text-6xl mb-6">⚠️</div>
+        <h2 className="text-2xl font-bold text-white mb-4">
+          유효하지 않은 결과입니다
+        </h2>
+        <p className="text-gray-400 mb-8">
+          테스트를 다시 진행해주세요.
+        </p>
+        <button
+          onClick={onRestart}
+          className="px-8 py-4 bg-lime-400 text-black rounded-full text-lg font-black"
+        >
+          다시 테스트하기
+        </button>
+      </motion.div>
+    );
+  }
 
   // 2. 랜덤으로 2개 선택 (기존 방식 유지)
   const [selectedMajors] = useState(() => getRandomMajors(resultType, 2));
@@ -826,14 +882,9 @@ function ResultView({
     }
 
     // 전화번호 유효성 검증 강화
-    const phoneRegex = /^01[0-9]-?\d{4}-?\d{4}$/;
+    const phoneRegex = /^01[0-9]\d{7,8}$/;
     const cleanPhone = phone.replace(/-/g, "");
-    if (
-      !phone ||
-      !phoneRegex.test(cleanPhone) ||
-      cleanPhone.length < 10 ||
-      cleanPhone.length > 11
-    ) {
+    if (!phone || !phoneRegex.test(cleanPhone)) {
       alert("올바른 휴대폰 번호 형식이 아닙니다. (010-1234-5678 형식)");
       return;
     }
@@ -857,8 +908,8 @@ function ResultView({
       if (error) throw error;
 
       // 3. [핵심] 실제 문자 발송 API 호출 🚀
-      // 현재 페이지 주소를 링크로 보냄 (나중에 공유 기능 구현 시 쿼리 파라미터 처리 필요)
-      const currentUrl = window.location.href;
+      // URL에 type 파라미터가 포함된 공유 링크 생성
+      const shareUrl = `${window.location.origin}${window.location.pathname}?type=${resultType}`;
 
       const smsResponse = await fetch("/api/sms", {
         method: "POST",
@@ -867,7 +918,7 @@ function ResultView({
           phone: cleanPhone,
           resultType: resultType,
           resultTitle: data.title, // 예: "천재 해커"
-          resultUrl: currentUrl, // 결과 페이지 링크
+          resultUrl: shareUrl, // 결과 페이지 링크 (type 파라미터 포함)
         }),
       });
 
@@ -907,7 +958,7 @@ function ResultView({
         error instanceof Error ? error.message : JSON.stringify(error, null, 2)
       );
       if (error && typeof error === "object") {
-        const errorObj = error as any;
+        const errorObj = error as Record<string, unknown>;
         if (errorObj.message) {
           console.error("에러 메시지:", errorObj.message);
         }
@@ -919,7 +970,7 @@ function ResultView({
       let errorMessage = "오류가 발생했습니다. 다시 시도해주세요.";
 
       if (error && typeof error === "object") {
-        const errorObj = error as any;
+        const errorObj = error as Record<string, unknown>;
         const errorString = JSON.stringify(errorObj).toLowerCase();
 
         // PostgreSQL unique constraint violation (code: 23505) 또는 중복 키 에러
@@ -940,16 +991,22 @@ function ResultView({
   };
 
   const handleShare = async () => {
+    // URL에 type 파라미터가 포함되었는지 확인하고, 없으면 추가
+    let shareUrl = window.location.href;
+    if (!shareUrl.includes("type=")) {
+      shareUrl = `${window.location.origin}${window.location.pathname}?type=${resultType}`;
+    }
+
     const shareData = {
       title: `나는 ${data.title}!`,
       text: `${data.desc} ${data.title} ${data.emoji}\n나의 숨겨진 재능을 찾아보세요!`,
-      url: window.location.href,
+      url: shareUrl,
     };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(shareUrl);
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
       }
@@ -1042,7 +1099,6 @@ function ResultView({
               onChange={(e) => setPhone(e.target.value)}
               placeholder="010-0000-0000"
               className="w-full pl-9 sm:pl-10 pr-4 py-3 sm:py-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-gray-400 font-bold text-base sm:text-lg focus:outline-none focus:border-lime-400"
-              aria-label="휴대폰 번호 입력"
             />
           </div>
         </div>
@@ -1132,9 +1188,6 @@ function ResultView({
           onClick={handleUnlock}
           disabled={isSubmitting}
           className="w-full py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-base sm:text-lg shadow-[0_0_20px_rgba(163,230,53,0.6)] disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label={
-            isSubmitting ? "저장 중입니다" : "맞춤형 입시 전략 리포트 받기"
-          }
         >
           {isSubmitting
             ? "저장 중..."
@@ -1144,7 +1197,6 @@ function ResultView({
         <button
           onClick={handleShare}
           className="w-full mt-3 py-3 sm:py-4 bg-transparent border-2 border-white/30 hover:border-white/50 rounded-2xl text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-colors"
-          aria-label="친구에게 결과 공유하기"
         >
           <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
           친구에게 내 결과 자랑하기 🔗
@@ -1313,24 +1365,68 @@ function AnalyzingView({ onComplete }: { onComplete: () => void }) {
 // [5] 메인 페이지 컴포넌트
 // ------------------------------------------------------------------
 export default function Home() {
-  const [stage, setStage] = useState("start");
-  const { questions, currentIndex, handleSwipe, getResult, progress } =
+  const [stage, setStage] = useState<"start" | "test" | "analyzing" | "result">("start");
+  const { questions, currentIndex, handleSwipe, getResult, progress, resetTest } =
     useTestLogic();
+
+  // URL에서 가져온 결과 타입 또는 테스트 완료 후 계산된 결과 타입
+  const [finalResultType, setFinalResultType] = useState<HollandType | null>(null);
+
   const currentQuestion = questions[currentIndex];
-  const isComplete = currentIndex >= questions.length && questions.length > 0;
+  const isTestComplete = currentIndex >= questions.length && questions.length > 0;
 
+  // [1] 페이지 로드 시 URL에 꼬리표(?type=...)가 있는지 확인
   useEffect(() => {
-    if (isComplete && stage === "test") setStage("analyzing");
-  }, [isComplete, stage]);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const typeParam = params.get("type");
 
-  const handleAnswer = (answer: string) => {
-    if (currentQuestion) handleSwipe(answer, currentQuestion.type);
-  };
-
-  // AnalyzingView의 onComplete를 useCallback으로 메모이제이션하여 메모리 누수 방지
-  const handleAnalyzingComplete = useCallback(() => {
-    setStage("result");
+      // 꼬리표가 있고, 유효한 타입(R,I,A,S,E,C)이라면 바로 결과 화면으로 점프
+      if (isValidHollandType(typeParam)) {
+        setFinalResultType(typeParam);
+        setStage("result");
+      }
+    }
   }, []);
+
+  // [2] 테스트가 끝나면 분석 화면으로 이동하고 결과 계산
+  useEffect(() => {
+    if (isTestComplete && stage === "test") {
+      // 결과 계산 (scores가 최신 상태일 때)
+      const calculatedType = getResult();
+      setFinalResultType(calculatedType);
+      setStage("analyzing");
+    }
+  }, [isTestComplete, stage, getResult]);
+
+  // [3] 분석 완료 시 결과 화면으로 이동하고 URL 업데이트
+  const handleAnalysisComplete = useCallback(() => {
+    setStage("result");
+    // URL 주소창 업데이트 (새로고침 없이 주소만 변경)
+    if (typeof window !== "undefined" && finalResultType) {
+      const newUrl = `${window.location.pathname}?type=${finalResultType}`;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [finalResultType]);
+
+  const handleAnswer = useCallback(
+    (answer: string) => {
+      if (currentQuestion) handleSwipe(answer, currentQuestion.type);
+    },
+    [currentQuestion, handleSwipe]
+  );
+
+  // [4] 재시작 핸들러
+  const handleRestart = useCallback(() => {
+    // URL 초기화 (쿼리 파라미터 제거)
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    // 상태 초기화
+    setFinalResultType(null);
+    resetTest();
+    setStage("start");
+  }, [resetTest]);
 
   return (
     <div className="fixed inset-0 bg-slate-950 overflow-hidden">
@@ -1343,6 +1439,7 @@ export default function Home() {
         <div className="w-full max-w-[420px] h-full flex flex-col">
           <Header />
           <AnimatePresence mode="wait">
+            {/* 1. 시작 화면 */}
             {stage === "start" && (
               <motion.div
                 key="start"
@@ -1355,7 +1452,8 @@ export default function Home() {
               </motion.div>
             )}
 
-            {stage === "test" && !isComplete && (
+            {/* 2. 테스트 진행 화면 */}
+            {stage === "test" && !isTestComplete && (
               <motion.div
                 key="test"
                 initial={{ opacity: 0 }}
@@ -1380,14 +1478,13 @@ export default function Home() {
                     )}
                   </AnimatePresence>
                 </div>
-                {/* ▼▼▼ 팩맨 진행바 추가 (질문 카드 하단) ▼▼▼ */}
+                {/* 팩맨 진행바 */}
                 <div className="flex-shrink-0 px-4 sm:px-6 pb-2">
                   <PacmanProgress
                     current={currentIndex}
                     total={questions.length}
                   />
                 </div>
-                {/* ▲▲▲ 여기까지 ▲▲▲ */}
                 <div className="flex-shrink-0 flex gap-4 justify-center py-4 sm:py-6 pb-6 sm:pb-8">
                   <motion.button
                     whileHover={{ scale: 1.1 }}
@@ -1417,6 +1514,7 @@ export default function Home() {
               </motion.div>
             )}
 
+            {/* 3. 분석 대기 화면 */}
             {stage === "analyzing" && (
               <motion.div
                 key="analyzing"
@@ -1425,11 +1523,12 @@ export default function Home() {
                 exit={{ opacity: 0 }}
                 className="flex-1 pt-14 sm:pt-16"
               >
-                <AnalyzingView onComplete={handleAnalyzingComplete} />
+                <AnalyzingView onComplete={handleAnalysisComplete} />
               </motion.div>
             )}
 
-            {stage === "result" && (
+            {/* 4. 결과 화면 */}
+            {stage === "result" && finalResultType && (
               <motion.div
                 key="result"
                 initial={{ opacity: 0 }}
@@ -1438,11 +1537,8 @@ export default function Home() {
                 className="flex-1 pt-14 sm:pt-16 overflow-y-auto"
               >
                 <ResultView
-                  resultType={getResult()}
-                  onRestart={() => {
-                    setStage("start");
-                    // window.location.reload() 제거: 상태만 리셋하면 useTestLogic 훅이 재호출되면서 자동으로 초기화됨
-                  }}
+                  resultType={finalResultType}
+                  onRestart={handleRestart}
                 />
               </motion.div>
             )}
