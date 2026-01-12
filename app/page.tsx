@@ -9,6 +9,155 @@ import {
 } from "framer-motion";
 import { Circle, X, Sparkles, TrendingUp, Phone, Share2 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
+// 팩맨 프로그레스 바 컴포넌트
+const PacmanProgress = ({
+  current,
+  total,
+}: {
+  current: number;
+  total: number;
+}) => {
+  // 진행률 계산 (0% ~ 100%)
+  const progress = (current / total) * 100;
+
+  return (
+    <div className="w-full max-w-md mx-auto mb-8 px-2">
+      <div className="relative h-8 flex items-center justify-between">
+        {/* 1. 배경에 깔린 점들 (Dots) */}
+        {/* 전체 문항 수만큼 점을 찍습니다 */}
+        <div className="absolute inset-0 flex items-center justify-between px-1">
+          {Array.from({ length: total }).map((_, idx) => (
+            <div
+              key={idx}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                idx < current
+                  ? "bg-transparent scale-0" // 먹은 건 투명하게 사라짐
+                  : "bg-white/20 scale-100" // 안 먹은 건 반투명 흰색
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* 2. 점을 먹으러 가는 팩맨 (Character) */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out z-10"
+          style={{
+            left: `${progress}%`,
+            marginLeft: "-12px", // 팩맨 크기 절반만큼 보정해서 중앙 정렬
+          }}
+        >
+          {/* 팩맨 아이콘 (입 벌리고 닫는 애니메이션 효과) */}
+          <div className="relative w-8 h-8">
+            <div className="absolute inset-0 bg-yellow-400 rounded-full animate-pulse"></div>
+            {/* 입 모양 (CSS 클립패스로 구현) */}
+            <div
+              className="absolute inset-0 bg-yellow-400 rounded-full"
+              style={{
+                clipPath: "polygon(100% 0%, 100% 100%, 50% 50%, 0% 50%, 0% 0%)",
+                transform: "rotate(-45deg)",
+              }}
+            ></div>
+            {/* 눈 */}
+            <div className="absolute top-1 right-2 w-1.5 h-1.5 bg-black rounded-full"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. 텍스트 표시 (선택사항) */}
+      <div className="text-right text-[10px] text-gray-500 mt-1 font-mono">
+        STAGE {current} / {total}
+      </div>
+    </div>
+  );
+};
+// page.tsx 상단 (컴포넌트 바깥)
+
+const TYPE_DETAILS = {
+  R: {
+    // 현실형 (엔지니어/기계)
+    title: "현실형 (Realistic)",
+    desc: "손재주가 좋고 기계를 다루는 데 천부적인 재능이 있어요.",
+    hiddenMajors: ["로봇제어과 🤖", "정밀기계과 ⚙️", "항공정비과 ✈️"],
+    recommendSchool: "수도전기공업고등학교", // 에너지 분야 탑티어
+    schoolStats: {
+      employmentRate: "97.7%",
+      keyCompanys: ["한국전력공사", "삼성전자", "현대자동차"],
+      avgSalary: "초봉 4,000만원↑ (공기업 기준)",
+    },
+    manual:
+      "이론 공부보다 실습이 훨씬 재밌죠? 마이스터고 가면 내신 5등급도 대기업 기술직으로 골인할 수 있습니다.",
+  },
+  I: {
+    // 탐구형 (IT/해커)
+    title: "탐구형 (Investigative)",
+    desc: "원리를 파고드는 분석가! 남들이 못 보는 버그를 찾아냅니다.",
+    hiddenMajors: ["소프트웨어개발과 💻", "정보보호과 🛡️", "인공지능과 🧠"],
+    recommendSchool: "대덕소프트웨어마이스터고", // SW 탑티어
+    schoolStats: {
+      employmentRate: "92.1%",
+      keyCompanys: ["토스(Toss)", "배달의민족", "금융감독원"],
+      avgSalary: "개발자 초봉 5,000만원↑",
+    },
+    manual:
+      "애매한 대학 컴공과보다 낫습니다. 졸업과 동시에 '네카라쿠배' 개발자로 취업하거나 SKY 대학으로 진학하는 케이스가 많아요.",
+  },
+  A: {
+    // 예술형 (디자인/웹툰)
+    title: "예술형 (Artistic)",
+    desc: "상상력이 풍부하고 나만의 개성을 표현하는 크리에이터!",
+    hiddenMajors: ["웹툰창작과 🎨", "시각디자인과 🖌️", "게임그래픽과 🎮"],
+    recommendSchool: "한국애니메이션고등학교", // 예체능 탑티어
+    schoolStats: {
+      employmentRate: "진학률 85%↑", // 예술계는 진학률이 중요
+      keyCompanys: ["네이버웹툰", "한예종/홍익대 진학", "게임사 아트팀"],
+      avgSalary: "업계 탑티어 포트폴리오 완성",
+    },
+    manual:
+      "입시 미술 하느라 돈 쓰는 대신, 학교에서 웹툰 그리고 게임 만들면서 바로 프로 데뷔 준비하세요.",
+  },
+  S: {
+    // 사회형 (보건/서비스)
+    title: "사회형 (Social)",
+    desc: "사람을 돕고 가르치는 데서 보람을 느끼는 천사표 리더!",
+    hiddenMajors: ["보건간호과 💉", "공공행정과 🏛️", "관광경영과 ✈️"],
+    recommendSchool: "서울관광고등학교", // 서비스 탑티어
+    schoolStats: {
+      employmentRate: "공무원 합격 다수",
+      keyCompanys: ["9급 공무원", "대학병원 간호조무사", "호텔리어"],
+      avgSalary: "안정적인 공무원 연금 확보",
+    },
+    manual:
+      "남들 공무원 시험 준비할 때, 특성화고 특채로 20살에 9급 공무원 되는 지름길이 있습니다.",
+  },
+  E: {
+    // 진취형 (금융/CEO)
+    title: "진취형 (Enterprising)",
+    desc: "설득하고 리드하는 야망가! 돈의 흐름을 읽는 눈이 있습니다.",
+    hiddenMajors: ["금융회계과 💰", "창업경영과 📈", "마케팅과 📢"],
+    recommendSchool: "서울여자상업고등학교", // 금융권 탑티어
+    schoolStats: {
+      employmentRate: "100% (취업희망자)",
+      keyCompanys: ["한국은행", "금융감독원", "시중 5대 은행"],
+      avgSalary: "금융권 초봉 5,000만원↑",
+    },
+    manual:
+      "인서울 상경계열 나와도 힘든 '금융권 A매치' 공기업 취업, 여기선 학교 추천으로 갑니다.",
+  },
+  C: {
+    // 관습형 (사무/행정)
+    title: "관습형 (Conventional)",
+    desc: "꼼꼼함의 대명사! 계획대로 척척 처리하는 완벽주의자.",
+    hiddenMajors: ["스마트물류과 📦", "공공사무행정과 📂", "세무회계과 🧾"],
+    recommendSchool: "선린인터넷고등학교", // IT+경영 융합
+    schoolStats: {
+      employmentRate: "대입/취업 선택형",
+      keyCompanys: ["공공기관 사무직", "대기업 재무팀", "세무공무원"],
+      avgSalary: "안정성 끝판왕 직무",
+    },
+    manual:
+      "숫자에 밝고 정리를 잘하나요? 기업의 안살림을 책임지는 핵심 인재로 모셔갑니다.",
+  },
+};
 
 // ------------------------------------------------------------------
 // [1] Supabase 클라이언트 설정
@@ -623,7 +772,14 @@ function ResultView({
       setShowSuccessPopup(true);
       setPhone("");
     } catch (error) {
-      console.error("데이터 저장 오류:", error);
+      // 에러 상세 정보를 확인하기 위한 개선된 로깅
+      console.error(
+        "데이터 저장 오류:",
+        error instanceof Error ? error.message : JSON.stringify(error, null, 2)
+      );
+      if (error && typeof error === "object" && "message" in error) {
+        console.error("Supabase 에러 메시지:", (error as any).message);
+      }
       alert("오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setIsSubmitting(false);
@@ -977,6 +1133,14 @@ export default function Home() {
                     )}
                   </AnimatePresence>
                 </div>
+                {/* ▼▼▼ 팩맨 진행바 추가 (질문 카드 하단) ▼▼▼ */}
+                <div className="flex-shrink-0 px-4 sm:px-6 pb-2">
+                  <PacmanProgress
+                    current={currentIndex}
+                    total={questions.length}
+                  />
+                </div>
+                {/* ▲▲▲ 여기까지 ▲▲▲ */}
                 <div className="flex-shrink-0 flex gap-4 justify-center py-4 sm:py-6 pb-6 sm:pb-8">
                   <motion.button
                     whileHover={{ scale: 1.1 }}
