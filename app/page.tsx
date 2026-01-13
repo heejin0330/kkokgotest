@@ -1211,6 +1211,21 @@ function ResultView({
   };
 
   const handlePremiumClick = () => {
+    // Validation: Check phone number and privacy consent
+    const phoneRegex = /^01[0-9]\d{7,8}$/;
+    const cleanPhone = phone.replace(/-/g, "");
+
+    if (!phone || !phoneRegex.test(cleanPhone)) {
+      alert("상세 테스트를 진행하려면 전화번호 입력 및 개인정보 제공 동의가 필요합니다.");
+      return;
+    }
+
+    if (!privacyConsent) {
+      alert("상세 테스트를 진행하려면 전화번호 입력 및 개인정보 제공 동의가 필요합니다.");
+      return;
+    }
+
+    // All validation passed, show confirmation
     const confirmMsg =
       "🎉 [베타 서비스 혜택]\n\n지금은 정밀 진단(60문항) 기능 오픈 기념으로\n1,000원 결제 없이 무료로 진행됩니다!\n\n바로 60문항 검사를 시작하시겠습니까?";
     if (confirm(confirmMsg)) {
