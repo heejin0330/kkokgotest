@@ -845,6 +845,130 @@ function PremiumQuestionCard({
   );
 }
 
+// Comparison Section Component
+function ComparisonSection({
+  currentResultType,
+  isPremiumMode,
+}: {
+  currentResultType: HollandType;
+  isPremiumMode: boolean;
+}) {
+  const [simpleResult, setSimpleResult] = useState<HollandType | null>(null);
+
+  useEffect(() => {
+    // Only show comparison if this is a premium (detailed) diagnosis
+    if (isPremiumMode && typeof window !== "undefined") {
+      const savedResult = localStorage.getItem("simpleTestResult");
+      if (isValidHollandType(savedResult)) {
+        setSimpleResult(savedResult);
+      }
+    }
+  }, [isPremiumMode]);
+
+  // Don't render if not premium mode or no simple result exists
+  if (!isPremiumMode || !simpleResult) {
+    return null;
+  }
+
+  const isSameResult = simpleResult === currentResultType;
+  const simpleData = RESULT_DATA[simpleResult];
+  const detailedData = RESULT_DATA[currentResultType];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full max-w-md mt-8"
+    >
+      <div className="text-center mb-4">
+        <h3 className="text-xl sm:text-2xl font-black text-white mb-2">
+          🔎 진단 결과 비교
+        </h3>
+        <p className="text-sm text-gray-400">
+          간단 진단 vs 정밀 진단 비교
+        </p>
+      </div>
+
+      {/* Badge */}
+      <div className="flex justify-center mb-4">
+        {isSameResult ? (
+          <div className="px-4 py-2 bg-green-500/20 border-2 border-green-500 rounded-full">
+            <span className="text-green-400 font-bold text-sm">
+              적성이 아주 확실하시네요! 🎯
+            </span>
+          </div>
+        ) : (
+          <div className="px-4 py-2 bg-yellow-500/20 border-2 border-yellow-500 rounded-full">
+            <span className="text-yellow-400 font-bold text-sm">
+              새로운 가능성을 발견했어요! 💡
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Comparison Cards */}
+      <div className="flex flex-col md:flex-row gap-4">
+        {/* Left Side - Simple Diagnosis */}
+        <div className="flex-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="text-center mb-3">
+            <div className="inline-block px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full mb-2">
+              <span className="text-blue-400 text-xs font-bold">
+                간단 진단 (12문항)
+              </span>
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl mb-2">{simpleData.emoji}</div>
+            <div className="text-xs text-gray-400 mb-1">
+              {simpleData.type}
+            </div>
+            <div className="text-lg font-bold text-white">
+              {simpleData.title}
+            </div>
+            <div className="text-xs text-gray-300 mt-2">
+              {simpleData.desc}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side - Detailed Diagnosis */}
+        <div className="flex-1 bg-gradient-to-br from-indigo-900/40 to-purple-900/40 backdrop-blur-xl border-2 border-indigo-500/50 rounded-2xl p-4 shadow-lg shadow-indigo-500/20">
+          <div className="text-center mb-3">
+            <div className="inline-block px-3 py-1 bg-indigo-500/30 border border-indigo-500/50 rounded-full mb-2">
+              <span className="text-indigo-300 text-xs font-bold">
+                정밀 진단 (60문항)
+              </span>
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl mb-2">{detailedData.emoji}</div>
+            <div className="text-xs text-gray-300 mb-1">
+              {detailedData.type}
+            </div>
+            <div className="text-lg font-bold text-white">
+              {detailedData.title}
+            </div>
+            <div className="text-xs text-gray-200 mt-2">
+              {detailedData.desc}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Info */}
+      {!isSameResult && (
+        <div className="mt-4 p-4 bg-yellow-500/10 rounded-2xl border border-yellow-500/20">
+          <p className="text-xs text-yellow-200 text-center leading-relaxed">
+            💡 정밀 진단은 더 많은 질문을 통해 심층 분석한 결과입니다.
+            <br />
+            새로운 적성을 발견하셨네요!
+          </p>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 function ResultView({
   resultType,
   scores,
@@ -1573,6 +1697,13 @@ function ResultView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Comparison Section - Only shows in premium mode if simple result exists */}
+      <ComparisonSection
+        currentResultType={resultType}
+        isPremiumMode={isPremiumMode}
+      />
+
       <button
         onClick={onRestart}
         className="mt-8 text-gray-400 underline font-bold text-base sm:text-lg hover:text-white transition-colors"
