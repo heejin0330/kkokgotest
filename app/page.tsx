@@ -1,5 +1,12 @@
 "use client";
 
+// 카카오 SDK 타입 정의
+declare global {
+  interface Window {
+    Kakao: any;
+  }
+}
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   motion,
@@ -139,6 +146,11 @@ interface UseTestLogicReturn {
   progress: number;
   initTest: (mode: "basic" | "premium") => void;
   resetTest: () => void;
+  // 정밀진단 모드용
+  answers: (string | null)[];
+  handleAnswer: (value: string) => void;
+  handlePrevious: () => void;
+  handleNext: () => void;
 }
 
 // ------------------------------------------------------------------
@@ -513,14 +525,22 @@ function useTestLogic(): UseTestLogicReturn {
     C: 0,
   });
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [answers, setAnswers] = useState<(string | null)[]>([]);
 
   // 초기화 함수: 모드에 따라 문제 세팅
   const initTest = useCallback((mode: "basic" | "premium") => {
     const isPremium = mode === "premium";
-    setQuestions(generateShuffledQuestions(isPremium));
+    const newQuestions = generateShuffledQuestions(isPremium);
+    setQuestions(newQuestions);
     setCurrentIndex(0);
     setScores({ R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 });
     setStartTime(Date.now());
+    // 정밀진단 모드일 때 answers 배열 초기화
+    if (isPremium) {
+      setAnswers(new Array(newQuestions.length).fill(null));
+    } else {
+      setAnswers([]);
+    }
   }, []);
 
   // 최초 로드 시 기본 테스트 시작
@@ -558,6 +578,51 @@ function useTestLogic(): UseTestLogicReturn {
     [currentIndex, questions.length]
   );
 
+  // 정밀진단 모드용 답변 저장 함수
+  const handleAnswer = useCallback(
+    (value: string) => {
+      setAnswers((prev) => {
+        const newAnswers = [...prev];
+        newAnswers[currentIndex] = value;
+        return newAnswers;
+      });
+    },
+    [currentIndex]
+  );
+
+  // 이전 문제로 이동
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+    }
+  }, [currentIndex]);
+
+  // 다음 문제로 이동 (점수 계산 포함)
+  const handleNext = useCallback(() => {
+    const currentQuestion = questions[currentIndex];
+    const currentAnswer = answers[currentIndex];
+
+    if (!currentQuestion || !currentAnswer) {
+      return; // 답변이 선택되지 않았으면 이동하지 않음
+    }
+
+    // 점수 계산 (right = 좋아요, left = 싫어요)
+    if (currentAnswer === "right") {
+      setScores((prev) => ({
+        ...prev,
+        [currentQuestion.type]: prev[currentQuestion.type] + 1,
+      }));
+    }
+
+    // 마지막 문제면 테스트 완료를 위해 인덱스를 증가시켜 isTestComplete를 true로 만듦
+    if (currentIndex >= questions.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      // 다음 문제로 이동
+      setCurrentIndex((prev) => prev + 1);
+    }
+  }, [currentIndex, questions, answers]);
+
   return {
     questions,
     currentIndex,
@@ -567,6 +632,10 @@ function useTestLogic(): UseTestLogicReturn {
     progress,
     resetTest: () => initTest("basic"),
     initTest,
+    answers,
+    handleAnswer,
+    handlePrevious,
+    handleNext,
   };
 }
 
@@ -589,7 +658,7 @@ function Header() {
 
 function StartScreen({ onStart }: { onStart: () => void }) {
   const handleStart = () => {
-    trackEvent("click_beta_start");
+    trackEvent("click_event_start");
     onStart();
   };
 
@@ -695,6 +764,82 @@ function SwipeCard({
         <p className="text-lg sm:text-xl font-bold text-white leading-relaxed text-center">
           {question.text}
         </p>
+      </div>
+    </motion.div>
+  );
+}
+
+// 정밀진단 모드용 라디오 버튼 기반 질문 카드
+function PremiumQuestionCard({
+  question,
+  selectedAnswer,
+  onAnswer,
+}: {
+  question: Question;
+  selectedAnswer: string | null;
+  onAnswer: (value: string) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="w-full max-w-sm mx-auto"
+    >
+      <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl">
+        <div className="text-5xl sm:text-6xl mb-4 sm:mb-6 text-center">🤔</div>
+        <p className="text-lg sm:text-xl font-bold text-white leading-relaxed text-center mb-8">
+          {question.text}
+        </p>
+
+        {/* 라디오 버튼 선택지 */}
+        <div className="space-y-4">
+          <label
+            className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+              selectedAnswer === "right"
+                ? "bg-lime-400/20 border-lime-400"
+                : "bg-white/5 border-white/20 hover:border-white/40"
+            }`}
+          >
+            <input
+              type="radio"
+              name={`question-${question.id}`}
+              value="right"
+              checked={selectedAnswer === "right"}
+              onChange={() => onAnswer("right")}
+              className="w-5 h-5 text-lime-400 focus:ring-lime-400 focus:ring-2"
+            />
+            <div className="flex items-center gap-3 flex-1">
+              <Circle className="w-6 h-6 text-lime-400" fill="currentColor" />
+              <span className="text-white font-bold text-base sm:text-lg">
+                좋아요
+              </span>
+            </div>
+          </label>
+
+          <label
+            className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+              selectedAnswer === "left"
+                ? "bg-red-400/20 border-red-400"
+                : "bg-white/5 border-white/20 hover:border-white/40"
+            }`}
+          >
+            <input
+              type="radio"
+              name={`question-${question.id}`}
+              value="left"
+              checked={selectedAnswer === "left"}
+              onChange={() => onAnswer("left")}
+              className="w-5 h-5 text-red-400 focus:ring-red-400 focus:ring-2"
+            />
+            <div className="flex items-center gap-3 flex-1">
+              <X className="w-6 h-6 text-red-400" />
+              <span className="text-white font-bold text-base sm:text-lg">
+                싫어요
+              </span>
+            </div>
+          </label>
+        </div>
       </div>
     </motion.div>
   );
@@ -839,14 +984,56 @@ function ResultView({
   };
 
   const handleKakaoShare = () => {
-    const shareUrl = getShareUrl();
-    const shareText = `${data.desc} ${data.title} ${data.emoji}\n나의 숨겨진 재능을 찾아보세요!`;
+    // 카카오 SDK가 로드되었는지 확인
+    if (typeof window === "undefined" || !window.Kakao) {
+      alert(
+        "카카오 SDK가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요."
+      );
+      return;
+    }
 
-    // 카카오톡 링크 공유 (카카오톡이 설치되어 있으면 앱으로, 없으면 웹으로)
-    const kakaoUrl = `https://story.kakao.com/share?url=${encodeURIComponent(
-      shareUrl
-    )}`;
-    window.open(kakaoUrl, "_blank");
+    // 카카오 SDK 초기화 확인 및 초기화
+    if (!window.Kakao.isInitialized()) {
+      const kakaoApiKey = process.env.NEXT_PUBLIC_KAKAO_API_KEY;
+      if (!kakaoApiKey) {
+        alert("카카오 API 키가 설정되지 않았습니다.");
+        return;
+      }
+      window.Kakao.init(kakaoApiKey);
+    }
+
+    const shareUrl = getShareUrl();
+    const currentUrl =
+      typeof window !== "undefined" ? window.location.href : shareUrl;
+    const imageUrl = `${window.location.origin}/og-image-2.png`;
+
+    try {
+      // 카카오톡 피드 메시지 전송
+      window.Kakao.Share.sendDefault({
+        objectType: "feed",
+        content: {
+          title: "꼭고 - 특성화고/마이스터고 매칭 플랫폼",
+          description: "AI 진로 테스트로 나에게 딱 맞는 고등학교를 찾아보세요!",
+          imageUrl: imageUrl,
+          link: {
+            mobileWebUrl: currentUrl,
+            webUrl: currentUrl,
+          },
+        },
+        buttons: [
+          {
+            title: "테스트 시작하기",
+            link: {
+              mobileWebUrl: currentUrl,
+              webUrl: currentUrl,
+            },
+          },
+        ],
+      });
+    } catch (err) {
+      console.error("카카오톡 공유 실패:", err);
+      alert("카카오톡 공유에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   const handleSaveImage = async () => {
@@ -891,6 +1078,7 @@ function ResultView({
     const confirmMsg =
       "🎉 [베타 서비스 혜택]\n\n지금은 정밀 진단(60문항) 기능 오픈 기념으로\n1,000원 결제 없이 무료로 진행됩니다!\n\n바로 60문항 검사를 시작하시겠습니까?";
     if (confirm(confirmMsg)) {
+      trackEvent("click_beta_start");
       onStartPremiumTest();
     }
   };
@@ -1482,6 +1670,10 @@ export default function Home() {
     scores,
     progress,
     initTest,
+    answers,
+    handleAnswer,
+    handlePrevious,
+    handleNext,
   } = useTestLogic();
   const [finalResultType, setFinalResultType] = useState<HollandType | null>(
     null
@@ -1511,9 +1703,16 @@ export default function Home() {
       const calculatedType = getResult();
       setFinalResultType(calculatedType);
       setIsSharedLink(false);
+
+      // Save simple diagnosis result to localStorage
+      if (!isPremiumMode && typeof window !== "undefined") {
+        localStorage.setItem("simpleTestResult", calculatedType);
+        localStorage.setItem("simpleTestDate", new Date().toISOString());
+      }
+
       setStage("analyzing");
     }
-  }, [isTestComplete, stage, getResult]);
+  }, [isTestComplete, stage, getResult, isPremiumMode]);
 
   const handleAnalysisComplete = useCallback(() => {
     setStage("result");
@@ -1523,7 +1722,7 @@ export default function Home() {
     }
   }, [finalResultType]);
 
-  const handleAnswer = useCallback(
+  const handleSwipeAnswer = useCallback(
     (answer: string) => {
       if (currentQuestion) handleSwipe(answer, currentQuestion.type);
     },
@@ -1590,13 +1789,21 @@ export default function Home() {
                 </div>
                 <div className="flex-1 relative flex items-center justify-center px-4 sm:px-6 min-h-0">
                   <AnimatePresence>
-                    {currentQuestion && (
-                      <SwipeCard
-                        key={currentQuestion.id}
-                        question={currentQuestion}
-                        onSwipe={handleAnswer}
-                      />
-                    )}
+                    {currentQuestion &&
+                      (isPremiumMode ? (
+                        <PremiumQuestionCard
+                          key={currentQuestion.id}
+                          question={currentQuestion}
+                          selectedAnswer={answers[currentIndex] || null}
+                          onAnswer={handleAnswer}
+                        />
+                      ) : (
+                        <SwipeCard
+                          key={currentQuestion.id}
+                          question={currentQuestion}
+                          onSwipe={handleSwipeAnswer}
+                        />
+                      ))}
                   </AnimatePresence>
                 </div>
                 <div className="flex-shrink-0 px-4 sm:px-6 pb-2">
@@ -1605,30 +1812,59 @@ export default function Home() {
                     total={questions.length}
                   />
                 </div>
-                <div className="flex-shrink-0 flex gap-4 justify-center py-4 sm:py-6 pb-6 sm:pb-8">
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => handleAnswer("left")}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-red-500 to-rose-600 shadow-[0_0_20px_rgba(239,68,68,0.5)] flex items-center justify-center"
-                  >
-                    <X
-                      className="w-8 h-8 sm:w-10 sm:h-10 text-white"
-                      strokeWidth={4}
-                    />
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => handleAnswer("right")}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.6)] flex items-center justify-center"
-                  >
-                    <Circle
-                      className="w-8 h-8 sm:w-10 sm:h-10 text-black"
-                      strokeWidth={4}
-                    />
-                  </motion.button>
-                </div>
+                {isPremiumMode ? (
+                  // 정밀진단 모드: 이전/다음 버튼
+                  <div className="flex-shrink-0 flex gap-4 justify-center px-4 sm:px-6 py-4 sm:py-6 pb-6 sm:pb-8">
+                    {currentIndex > 0 && (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handlePrevious}
+                        className="px-6 sm:px-8 py-3 sm:py-4 bg-gray-600 hover:bg-gray-500 text-white rounded-full text-base sm:text-lg font-bold shadow-lg transition-colors"
+                      >
+                        이전
+                      </motion.button>
+                    )}
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleNext}
+                      disabled={
+                        !answers[currentIndex] ||
+                        currentIndex >= questions.length - 1
+                      }
+                      className="px-6 sm:px-8 py-3 sm:py-4 bg-lime-400 hover:bg-lime-500 text-black rounded-full text-base sm:text-lg font-bold shadow-[0_0_20px_rgba(163,230,53,0.6)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {currentIndex >= questions.length - 1 ? "완료" : "다음"}
+                    </motion.button>
+                  </div>
+                ) : (
+                  // 기본 모드: 스와이프 버튼
+                  <div className="flex-shrink-0 flex gap-4 justify-center py-4 sm:py-6 pb-6 sm:pb-8">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleSwipeAnswer("left")}
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-red-500 to-rose-600 shadow-[0_0_20px_rgba(239,68,68,0.5)] flex items-center justify-center"
+                    >
+                      <X
+                        className="w-8 h-8 sm:w-10 sm:h-10 text-white"
+                        strokeWidth={4}
+                      />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleSwipeAnswer("right")}
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.6)] flex items-center justify-center"
+                    >
+                      <Circle
+                        className="w-8 h-8 sm:w-10 sm:h-10 text-black"
+                        strokeWidth={4}
+                      />
+                    </motion.button>
+                  </div>
+                )}
               </motion.div>
             )}
             {stage === "analyzing" && (
