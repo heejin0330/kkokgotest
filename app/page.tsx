@@ -32,6 +32,7 @@ import {
   type HollandType,
   type Question,
 } from "./data/questions";
+import { trackEvent } from "@/lib/gtag";
 
 // ------------------------------------------------------------------
 // [0] TypeScript 타입 정의
@@ -587,6 +588,11 @@ function Header() {
 }
 
 function StartScreen({ onStart }: { onStart: () => void }) {
+  const handleStart = () => {
+    trackEvent("click_beta_start");
+    onStart();
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -612,7 +618,7 @@ function StartScreen({ onStart }: { onStart: () => void }) {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={onStart}
+        onClick={handleStart}
         className="px-8 sm:px-12 py-4 sm:py-5 bg-lime-400 text-black rounded-full text-lg sm:text-xl font-black shadow-[0_0_20px_rgba(163,230,53,0.6)]"
       >
         시작하기 →
@@ -733,6 +739,11 @@ function ResultView({
       alert("올바른 휴대폰 번호 형식이 아닙니다.");
       return;
     }
+
+    // GA4 이벤트 전송
+    trackEvent("click_free_major", {
+      result_type: resultType,
+    });
 
     setIsSubmitting(true);
     try {
