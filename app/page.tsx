@@ -165,7 +165,7 @@ function isValidHollandType(value: string | null): value is HollandType {
 // 통합 결과 데이터 (RESULT_DATA)
 const RESULT_DATA: ResultDataMap = {
   R: {
-    type: "실재형 (R)",
+    type: "실재형",
     title: "마이더스의 손",
     emoji: "🛠️",
     desc: "손만 대면 고쳐내는 금손의 소유자!",
@@ -189,7 +189,7 @@ const RESULT_DATA: ResultDataMap = {
     },
   },
   I: {
-    type: "탐구형 (I)",
+    type: "탐구형",
     title: "천재 해커",
     emoji: "💻",
     desc: "10시간 걸릴 일을 10분 컷하는 효율맨!",
@@ -213,7 +213,7 @@ const RESULT_DATA: ResultDataMap = {
     },
   },
   A: {
-    type: "예술형 (A)",
+    type: "예술형",
     title: "트렌드 세터",
     emoji: "🎨",
     desc: "숨만 쉬어도 힙한 감각적인 아티스트!",
@@ -237,7 +237,7 @@ const RESULT_DATA: ResultDataMap = {
     },
   },
   S: {
-    type: "사회형 (S)",
+    type: "사회형",
     title: "핵인싸 아이돌",
     emoji: "💖",
     desc: "어딜 가나 사랑받는 분위기 메이커!",
@@ -261,7 +261,7 @@ const RESULT_DATA: ResultDataMap = {
     },
   },
   E: {
-    type: "진취형 (E)",
+    type: "진취형",
     title: "영앤리치 CEO",
     emoji: "👑",
     desc: "떡잎부터 남다른 야망가!",
@@ -285,7 +285,7 @@ const RESULT_DATA: ResultDataMap = {
     },
   },
   C: {
-    type: "관습형 (C)",
+    type: "관습형",
     title: "인간 AI",
     emoji: "🤖",
     desc: "실수란 없다, 걸어 다니는 계산기!",
@@ -1320,7 +1320,7 @@ function ResultView({
         {data.title}
       </h1>
 
-      <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-5 mb-3 sm:mb-4 shadow-2xl">
+      <div className="w-full max-w-md bg-white/5 backdrop-blur-xl rounded-3xl p-4 sm:p-5 mb-3 sm:mb-4 shadow-2xl">
         <div className="text-center mb-3">
           <p className="text-xs text-lime-400 font-bold mb-1">
             {isUnlocked
@@ -1336,7 +1336,7 @@ function ResultView({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm border border-lime-400/30"
+                className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm"
               >
                 {major}
               </motion.span>
@@ -1349,7 +1349,7 @@ function ResultView({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.15 }}
-                  className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm border border-lime-400/30"
+                  className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm"
                 >
                   {major}
                 </motion.span>
@@ -1360,7 +1360,7 @@ function ResultView({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: (index + 2) * 0.15 }}
-                  className="relative px-3 sm:px-4 py-2 bg-white/5 rounded-full text-gray-500 font-bold text-xs sm:text-sm border border-white/10"
+                  className="relative px-3 sm:px-4 py-2 bg-white/5 rounded-full text-gray-500 font-bold text-xs sm:text-sm"
                 >
                   <span className="blur-[3px] select-none">🔒 ??? 학과</span>
                   <span className="absolute inset-0 flex items-center justify-center text-gray-400">
@@ -1373,12 +1373,15 @@ function ResultView({
         </div>
       </div>
 
-      {/* Free Report Section - Show when unlocked OR in premium mode */}
-      {(isUnlocked || isPremiumMode) && (
+      {/* Free Report Section - 항상 표시, 잠금 상태에서는 블러 + 오버레이 */}
+      <div className="relative w-full max-w-md mb-4 sm:mb-6">
+        {/* 리포트 내용 (블러 가능) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-gradient-to-br from-lime-400/10 to-emerald-400/10 backdrop-blur-xl border border-lime-400/30 rounded-3xl p-5 sm:p-6 mb-4 sm:mb-6 shadow-2xl"
+          className={`bg-gradient-to-br from-lime-400/10 to-emerald-400/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl transition-all duration-500 ${
+            !isUnlocked && !isPremiumMode ? "blur-[6px] pointer-events-none select-none" : ""
+          }`}
         >
           <div className="flex items-center gap-2 mb-4">
             <CheckCircle className="w-6 h-6 text-lime-400" />
@@ -1405,7 +1408,6 @@ function ResultView({
                 </p>
               </div>
             </div>
-            {/* [수정] 복구된 취업 현황 섹션 */}
             <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
               <Building2 className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
               <div>
@@ -1421,7 +1423,7 @@ function ResultView({
                 </p>
               </div>
             </div>
-            <div className="p-4 bg-lime-400/10 rounded-2xl border border-lime-400/20">
+            <div className="p-4 bg-lime-400/10 rounded-2xl">
               <p className="text-xs text-lime-400 font-bold mb-2">
                 💡 진로 전문가 코멘트
               </p>
@@ -1430,116 +1432,123 @@ function ResultView({
               </p>
             </div>
           </div>
-          <button
-            onClick={handleShare}
-            className="w-full mt-4 py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(163,230,53,0.4)]"
-          >
-            <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
-            친구에게 내 결과 공유하기 🔗
-          </button>
+          {(isUnlocked || isPremiumMode) && (
+            <button
+              onClick={handleShare}
+              className="w-full mt-4 py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(163,230,53,0.4)]"
+            >
+              <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              친구에게 내 결과 공유하기 🔗
+            </button>
+          )}
         </motion.div>
-      )}
 
-      {/* Personal Info Consent Form - Only show when NOT unlocked AND NOT in premium mode */}
-      {!isUnlocked && !isPremiumMode && (
-        <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-2xl">
-          <div className="flex items-center gap-3 mb-4">
-            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-lime-400 flex-shrink-0" />
-            <div className="text-white font-bold text-sm sm:text-base leading-snug">
-              <p className="mb-1">
-                고등학교 <span className="text-lime-400">꼭 일반고</span>를
-                가야할까?
-              </p>
-              <p className="text-xs sm:text-sm text-gray-300">
-                내 적성에 맞는{" "}
-                <span className="text-lime-400">마이스터고, 특성화고</span>{" "}
-                추천리스트 받기 👇
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 mb-3">
-            <div className="flex-1 relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="010-0000-0000"
-                className="w-full pl-9 sm:pl-10 pr-4 py-3 sm:py-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-gray-400 font-bold text-base sm:text-lg focus:outline-none focus:border-lime-400"
-              />
-            </div>
-          </div>
-          <div className="mt-4 mb-4 px-1 space-y-3">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-start gap-2">
-                <div className="flex items-center h-5">
+        {/* 잠금 해제 오버레이 - 블러된 리포트 위에 표시 */}
+        {!isUnlocked && !isPremiumMode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <div className="w-full bg-black/70 backdrop-blur-sm rounded-3xl p-4 sm:p-6 mx-2">
+              <div className="flex items-center gap-3 mb-4">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-lime-400 flex-shrink-0" />
+                <div className="text-white font-bold text-sm sm:text-base leading-snug">
+                  <p className="mb-1">
+                    고등학교 <span className="text-lime-400">꼭 일반고</span>를
+                    가야할까?
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-300">
+                    내 적성에 맞는{" "}
+                    <span className="text-lime-400">마이스터고, 특성화고</span>{" "}
+                    추천리스트 받기 👇
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 mb-3">
+                <div className="flex-1 relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   <input
-                    id="privacy-consent"
-                    type="checkbox"
-                    checked={privacyConsent}
-                    onChange={(e) => setPrivacyConsent(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-lime-400 focus:ring-lime-400 bg-white/10"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="010-0000-0000"
+                    className="w-full pl-9 sm:pl-10 pr-4 py-3 sm:py-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-gray-400 font-bold text-base sm:text-lg focus:outline-none focus:border-lime-400"
                   />
                 </div>
-                <label
-                  htmlFor="privacy-consent"
-                  className="text-sm font-medium text-white cursor-pointer select-none"
-                >
-                  [필수] 개인정보 수집 및 이용 동의
-                </label>
               </div>
-              {/* [수정] 복구된 약관 상세 보기 */}
-              <details className="ml-6 text-[11px] text-gray-400 cursor-pointer">
-                <summary className="hover:text-gray-300 underline underline-offset-2">
-                  약관 전체 보기 🔽
-                </summary>
-                <div className="p-3 mt-2 bg-black/40 rounded-xl border border-white/10 h-32 overflow-y-auto">
-                  <p className="font-bold text-gray-300 mb-1">
-                    [개인정보 수집 및 이용 동의]
-                  </p>
-                  1. 목적: 진로 분석 결과 발송 및 상담, 서비스 이용 확인
-                  <br />
-                  2. 항목: 휴대전화번호, 검사 결과 데이터
-                  <br />
-                  3. 기간: <strong>서비스 종료 또는 동의 철회 시까지</strong>
-                  <br />
-                  4. 권리: 동의를 거부할 수 있으나, 거부 시 결과 발송이
-                  불가합니다.
+              <div className="mt-4 mb-4 px-1 space-y-3">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-start gap-2">
+                    <div className="flex items-center h-5">
+                      <input
+                        id="privacy-consent"
+                        type="checkbox"
+                        checked={privacyConsent}
+                        onChange={(e) => setPrivacyConsent(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-lime-400 focus:ring-lime-400 bg-white/10"
+                      />
+                    </div>
+                    <label
+                      htmlFor="privacy-consent"
+                      className="text-sm font-medium text-white cursor-pointer select-none"
+                    >
+                      [필수] 개인정보 수집 및 이용 동의
+                    </label>
+                  </div>
+                  <details className="ml-6 text-[11px] text-gray-400 cursor-pointer">
+                    <summary className="hover:text-gray-300 underline underline-offset-2">
+                      약관 전체 보기 🔽
+                    </summary>
+                    <div className="p-3 mt-2 bg-black/40 rounded-xl border border-white/10 h-32 overflow-y-auto">
+                      <p className="font-bold text-gray-300 mb-1">
+                        [개인정보 수집 및 이용 동의]
+                      </p>
+                      1. 목적: 진로 분석 결과 발송 및 상담, 서비스 이용 확인
+                      <br />
+                      2. 항목: 휴대전화번호, 검사 결과 데이터
+                      <br />
+                      3. 기간: <strong>서비스 종료 또는 동의 철회 시까지</strong>
+                      <br />
+                      4. 권리: 동의를 거부할 수 있으나, 거부 시 결과 발송이
+                      불가합니다.
+                    </div>
+                  </details>
                 </div>
-              </details>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="flex items-center h-5">
-                <input
-                  id="marketing-consent"
-                  type="checkbox"
-                  checked={marketingConsent}
-                  onChange={(e) => setMarketingConsent(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-lime-400 focus:ring-lime-400 bg-white/10"
-                />
+                <div className="flex items-start gap-2">
+                  <div className="flex items-center h-5">
+                    <input
+                      id="marketing-consent"
+                      type="checkbox"
+                      checked={marketingConsent}
+                      onChange={(e) => setMarketingConsent(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-lime-400 focus:ring-lime-400 bg-white/10"
+                    />
+                  </div>
+                  <div className="text-xs sm:text-sm">
+                    <label
+                      htmlFor="marketing-consent"
+                      className="font-medium text-gray-300 select-none cursor-pointer"
+                    >
+                      [선택] 정식 서비스 출시 알림 받기
+                    </label>
+                  </div>
+                </div>
               </div>
-              <div className="text-xs sm:text-sm">
-                <label
-                  htmlFor="marketing-consent"
-                  className="font-medium text-gray-300 select-none cursor-pointer"
-                >
-                  [선택] 정식 서비스 출시 알림 받기
-                </label>
-              </div>
-            </div>
-          </div>
 
-          <button
-            onClick={handleUnlock}
-            disabled={isSubmitting}
-            className="w-full py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-base sm:text-lg shadow-[0_0_20px_rgba(163,230,53,0.6)] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting
-              ? "저장 중..."
-              : "[무료] AI가 분석한 추천 학과 모두보기"}
-          </button>
-        </div>
-      )}
+              <button
+                onClick={handleUnlock}
+                disabled={isSubmitting}
+                className="w-full py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-base sm:text-lg shadow-[0_0_20px_rgba(163,230,53,0.6)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting
+                  ? "저장 중..."
+                  : "🔓 무료 리포트 잠금 해제하기"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </div>
 
       {/* 2️⃣ 정밀 리포트 (Fake Door -> Real Test Entry) 영역 */}
       {!isPremiumMode && (
@@ -1681,12 +1690,12 @@ function ResultView({
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.2 }}
-                  className="w-20 h-20 mx-auto mb-4 bg-lime-400/20 rounded-full flex items-center justify-center border-2 border-lime-400/50"
+                  className="w-20 h-20 mx-auto mb-4 bg-lime-400/20 rounded-full flex items-center justify-center"
                 >
                   <CheckCircle className="w-12 h-12 text-lime-400" />
                 </motion.div>
                 <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">
-                  🎉 사전 예약 완료!
+                  🔓 잠금 해제 성공!
                 </h3>
                 <p className="text-gray-300 text-sm sm:text-base mb-6 leading-relaxed">
                   AI가 분석한 맞춤 추천 학과가 모두 공개되었습니다.
