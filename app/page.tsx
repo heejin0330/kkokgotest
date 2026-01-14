@@ -31,6 +31,9 @@ import {
   Instagram,
   MessageCircle,
   Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import html2canvas from "html2canvas";
@@ -69,6 +72,17 @@ interface ResultDataType {
 }
 
 type ResultDataMap = Record<HollandType, ResultDataType>;
+
+// 학교 정보 (API 응답 타입)
+interface SchoolInfo {
+  schoolName: string;
+  address: string;
+  employmentRate: number | null;
+  enrollmentRate: number | null;
+  graduates: number | null;
+  surveyYear: string | null;
+  schoolType: string | null;
+}
 
 // [수정] 프리미엄 데이터 구조 확장
 interface PremiumContent {
@@ -449,6 +463,227 @@ const PacmanProgress = ({
 };
 
 // ------------------------------------------------------------------
+// 학교 카드 슬라이더 컴포넌트
+// ------------------------------------------------------------------
+interface SchoolCardData {
+  major: string;
+  schoolName: string;
+  address: string;
+  employmentRate: number | null;
+  enrollmentRate: number | null;
+  schoolType: string | null;
+}
+
+const SchoolCardSlider = ({
+  cards,
+  ncsField,
+  expertComment,
+}: {
+  cards: SchoolCardData[];
+  ncsField: string;
+  expertComment: string;
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
+
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 300 : -300,
+      opacity: 0,
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: number) => ({
+      zIndex: 0,
+      x: direction < 0 ? 300 : -300,
+      opacity: 0,
+    }),
+  };
+
+  const swipeConfidenceThreshold = 10000;
+  const swipePower = (offset: number, velocity: number) => {
+    return Math.abs(offset) * velocity;
+  };
+
+  const paginate = (newDirection: number) => {
+    const newIndex = currentIndex + newDirection;
+    if (newIndex >= 0 && newIndex < cards.length) {
+      setDirection(newDirection);
+      setCurrentIndex(newIndex);
+    }
+  };
+
+  const currentCard = cards[currentIndex];
+
+  if (!currentCard || cards.length === 0) {
+    return (
+      <div className="w-full max-w-md bg-white/5 rounded-3xl p-6 text-center">
+        <p className="text-gray-400">학교 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-md">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="w-6 h-6 text-lime-400" />
+          <h3 className="text-lg sm:text-xl font-black text-white">
+            📋 맞춤 진학 리포트
+          </h3>
+        </div>
+        <span className="text-xs text-gray-400 bg-white/10 px-2 py-1 rounded-full">
+          {currentIndex + 1} / {cards.length}
+        </span>
+      </div>
+
+      {/* 페이지 인디케이터 */}
+      <div className="flex justify-center gap-2 mb-4">
+        {cards.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => {
+              setDirection(idx > currentIndex ? 1 : -1);
+              setCurrentIndex(idx);
+            }}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              idx === currentIndex
+                ? "bg-lime-400 w-6"
+                : "bg-white/30 hover:bg-white/50"
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* 카드 슬라이더 */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-lime-400/10 to-emerald-400/10 backdrop-blur-xl">
+        <AnimatePresence initial={false} custom={direction} mode="wait">
+          <motion.div
+            key={currentIndex}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{
+              x: { type: "spring", stiffness: 300, damping: 30 },
+              opacity: { duration: 0.2 },
+            }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={1}
+            onDragEnd={(e, { offset, velocity }) => {
+              const swipe = swipePower(offset.x, velocity.x);
+              if (swipe < -swipeConfidenceThreshold) {
+                paginate(1);
+              } else if (swipe > swipeConfidenceThreshold) {
+                paginate(-1);
+              }
+            }}
+            className="p-5 sm:p-6"
+          >
+            {/* 학교 정보 */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <GraduationCap className="w-5 h-5 text-lime-400" />
+                <span className="text-xs text-gray-400">추천 학교</span>
+              </div>
+              <h4 className="text-xl sm:text-2xl font-black text-white mb-1">
+                {currentCard.schoolName}
+              </h4>
+              <div className="flex items-center gap-1 text-gray-400 text-sm">
+                <MapPin className="w-4 h-4" />
+                <span>{currentCard.address}</span>
+                {currentCard.schoolType && (
+                  <span className="ml-2 text-xs bg-lime-400/20 text-lime-400 px-2 py-0.5 rounded-full">
+                    {currentCard.schoolType}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 추천 학과 */}
+            <div className="bg-white/5 rounded-2xl p-3 mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Briefcase className="w-4 h-4 text-lime-400" />
+                <span className="text-xs text-gray-400">추천 학과</span>
+              </div>
+              <p className="text-white font-bold">{currentCard.major}</p>
+            </div>
+
+            {/* NCS 직무 분야 */}
+            <div className="bg-white/5 rounded-2xl p-3 mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Building2 className="w-4 h-4 text-lime-400" />
+                <span className="text-xs text-gray-400">NCS 직무 분야</span>
+              </div>
+              <p className="text-white font-bold text-sm">{ncsField}</p>
+            </div>
+
+            {/* 취업률/진학률 */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-2xl p-4 text-center">
+                <p className="text-xs text-blue-300 mb-1">취업률</p>
+                <p className="text-2xl sm:text-3xl font-black text-white">
+                  {currentCard.employmentRate !== null
+                    ? `${currentCard.employmentRate}%`
+                    : "-"}
+                </p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 rounded-2xl p-4 text-center">
+                <p className="text-xs text-purple-300 mb-1">대학진학률</p>
+                <p className="text-2xl sm:text-3xl font-black text-white">
+                  {currentCard.enrollmentRate !== null
+                    ? `${currentCard.enrollmentRate}%`
+                    : "-"}
+                </p>
+              </div>
+            </div>
+
+            {/* 진로 전문가 코멘트 */}
+            <div className="p-4 bg-lime-400/10 rounded-2xl mb-3">
+              <p className="text-xs text-lime-400 font-bold mb-2">
+                💡 진로 전문가 코멘트
+              </p>
+              <p className="text-white text-sm leading-relaxed">
+                {expertComment}
+              </p>
+            </div>
+
+            {/* 출처 표기 */}
+            <p className="text-[10px] text-gray-500 text-center">
+              📊 출처: 한국교육개발원 교육통계서비스 (KEDI)
+            </p>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* 좌우 네비게이션 버튼 */}
+        {currentIndex > 0 && (
+          <button
+            onClick={() => paginate(-1)}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors z-10"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        )}
+        {currentIndex < cards.length - 1 && (
+          <button
+            onClick={() => paginate(1)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors z-10"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------------
 // [1] Supabase 클라이언트 설정
 // ------------------------------------------------------------------
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -707,7 +942,7 @@ function Header() {
 }
 
 function StartScreen({ onStart }: { onStart: () => void }) {
-  const [variant, setVariant] = useState<typeof AB_VARIANTS[0] | null>(null);
+  const [variant, setVariant] = useState<(typeof AB_VARIANTS)[0] | null>(null);
 
   // 접속 시 랜덤 버전 선택 (localStorage로 동일 사용자 버전 유지)
   useEffect(() => {
@@ -1067,26 +1302,30 @@ function ResultView({
   const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [schoolInfo, setSchoolInfo] = useState<Record<string, { schoolName: string; address: string } | null>>({});
+  const [schoolInfo, setSchoolInfo] = useState<
+    Record<string, SchoolInfo[]>
+  >({});
   const [userRegion, setUserRegion] = useState<string>("");
 
   // IP 기반 지역 파악 및 학교 정보 로딩
   useEffect(() => {
     const loadSchoolInfo = async () => {
       try {
-        // 1. IP 기반 지역 파악
+        // 1. IP 기반 지역 파악 (지역 정보는 참고용으로만 사용)
         const regionRes = await fetch("/api/schools", { method: "POST" });
         const regionData = await regionRes.json();
         const region = regionData.region || "Seoul";
         setUserRegion(region);
 
-        // 2. 학과별 학교 검색
+        // 2. 학과별 학교 검색 (취업률/진학률 기준 정렬된 결과)
         const majors = data?.majors || [];
         const schoolRes = await fetch(
-          `/api/schools?majors=${encodeURIComponent(majors.join(","))}&region=${encodeURIComponent(region)}`
+          `/api/schools?majors=${encodeURIComponent(
+            majors.join(",")
+          )}&region=${encodeURIComponent(region)}`
         );
         const schoolData = await schoolRes.json();
-        
+
         if (schoolData.success) {
           setSchoolInfo(schoolData.data);
         }
@@ -1099,6 +1338,37 @@ function ResultView({
       loadSchoolInfo();
     }
   }, [data]);
+
+  // 카드 슬라이더용 데이터 생성 (각 학과별 상위 학교 선택)
+  const schoolCards: SchoolCardData[] = useMemo(() => {
+    if (!data) return [];
+    return data.majors.map((major) => {
+      const schools = schoolInfo[major] || [];
+      // 각 학과별 첫 번째 학교(가장 높은 점수) 선택
+      const topSchool = schools[0];
+      
+      // 학교 정보가 없어도 카드 표시 (기본값)
+      if (!topSchool) {
+        return {
+          major: major,
+          schoolName: "정보 확인 중...",
+          address: "",
+          employmentRate: null,
+          enrollmentRate: null,
+          schoolType: null,
+        };
+      }
+      
+      return {
+        major: major,
+        schoolName: topSchool.schoolName || "정보 로딩 중...",
+        address: topSchool.address || "",
+        employmentRate: topSchool.employmentRate ?? null,
+        enrollmentRate: topSchool.enrollmentRate ?? null,
+        schoolType: topSchool.schoolType ?? null,
+      };
+    });
+  }, [data, schoolInfo]);
 
   if (!data) return null;
 
@@ -1304,27 +1574,19 @@ function ResultView({
   };
 
   const handlePremiumClick = () => {
-    // Validation: Check phone number and privacy consent
-    const phoneRegex = /^01[0-9]\d{7,8}$/;
-    const cleanPhone = phone.replace(/-/g, "");
-
-    if (!phone || !phoneRegex.test(cleanPhone)) {
-      alert("상세 테스트를 진행하려면 전화번호 입력 및 개인정보 제공 동의가 필요합니다.");
+    // 무료 리포트 오픈 상태에서는 바로 진행
+    if (isUnlocked || isPremiumMode) {
+      const confirmMsg =
+        "🎉 [베타 서비스 혜택]\n\n지금은 정밀 진단(60문항) 기능 오픈 기념으로\n1000원 결제 없이 무료로 진행됩니다!\n\n바로 60문항 검사를 시작하시겠습니까?";
+      if (confirm(confirmMsg)) {
+        trackEvent("click_beta_start");
+        onStartPremiumTest();
+      }
       return;
     }
 
-    if (!privacyConsent) {
-      alert("상세 테스트를 진행하려면 전화번호 입력 및 개인정보 제공 동의가 필요합니다.");
-      return;
-    }
-
-    // All validation passed, show confirmation
-    const confirmMsg =
-      "🎉 [베타 서비스 혜택]\n\n지금은 정밀 진단(60문항) 기능 오픈 기념으로\n1,000원 결제 없이 무료로 진행됩니다!\n\n바로 60문항 검사를 시작하시겠습니까?";
-    if (confirm(confirmMsg)) {
-      trackEvent("click_beta_start");
-      onStartPremiumTest();
-    }
+    // 무료 리포트 오픈 전: 개인정보 수집 동의 요청
+    alert("개인정보 수집 및 이용에 동의해주세요.");
   };
 
   return (
@@ -1376,9 +1638,9 @@ function ResultView({
                 className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl"
               >
                 <span className="text-lime-400 font-bold text-sm">{major}</span>
-                {schoolInfo[major] && (
+                {schoolInfo[major] && schoolInfo[major][0] && (
                   <span className="text-gray-300 text-xs">
-                    {schoolInfo[major]?.schoolName}
+                    {schoolInfo[major][0].schoolName}
                   </span>
                 )}
               </motion.div>
@@ -1393,10 +1655,12 @@ function ResultView({
                   transition={{ delay: index * 0.15 }}
                   className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl"
                 >
-                  <span className="text-lime-400 font-bold text-sm">{major}</span>
-                  {schoolInfo[major] && (
+                  <span className="text-lime-400 font-bold text-sm">
+                    {major}
+                  </span>
+                  {schoolInfo[major] && schoolInfo[major][0] && (
                     <span className="text-gray-300 text-xs">
-                      {schoolInfo[major]?.schoolName}
+                      {schoolInfo[major][0].schoolName}
                     </span>
                   )}
                 </motion.div>
@@ -1409,8 +1673,12 @@ function ResultView({
                   transition={{ delay: (index + 2) * 0.15 }}
                   className="relative flex items-center justify-between px-4 py-3 bg-white/5 rounded-2xl"
                 >
-                  <span className="blur-[3px] select-none text-gray-500 font-bold text-sm">🔒 ??? 학과</span>
-                  <span className="blur-[3px] select-none text-gray-600 text-xs">??? 고등학교</span>
+                  <span className="blur-[3px] select-none text-gray-500 font-bold text-sm">
+                    🔒 ??? 학과
+                  </span>
+                  <span className="blur-[3px] select-none text-gray-600 text-xs">
+                    ??? 고등학교
+                  </span>
                   <span className="absolute inset-0 flex items-center justify-center text-gray-400">
                     <Lock className="w-4 h-4" />
                   </span>
@@ -1421,66 +1689,20 @@ function ResultView({
         </div>
       </div>
 
-      {/* Free Report Section - 항상 표시, 잠금 상태에서는 블러 + 오버레이 */}
+      {/* 맞춤 진학 리포트 - 카드 슬라이더 */}
       <div className="relative w-full max-w-md mb-4 sm:mb-6">
-        {/* 리포트 내용 (블러 가능) */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`bg-gradient-to-br from-lime-400/10 to-emerald-400/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl transition-all duration-500 ${
-            !isUnlocked && !isPremiumMode ? "blur-[6px] pointer-events-none select-none" : ""
-          }`}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <CheckCircle className="w-6 h-6 text-lime-400" />
-            <h3 className="text-lg sm:text-xl font-black text-white">
-              📋 맞춤 진학 리포트
-            </h3>
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
-              <GraduationCap className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400 mb-1">추천 학교</p>
-                <p className="text-white font-bold text-sm sm:text-base">
-                  {data.report.recommendSchool}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
-              <Briefcase className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400 mb-1">NCS 직무 분야</p>
-                <p className="text-white font-bold text-sm sm:text-base">
-                  {data.report.ncsField}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
-              <Building2 className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400 mb-1">취업 현황</p>
-                <p className="text-white font-bold text-sm sm:text-base">
-                  취업률 {data.report.stats.employmentRate}
-                </p>
-                <p className="text-gray-300 text-xs mt-1">
-                  {data.report.stats.companies}
-                </p>
-                <p className="text-lime-400 text-xs mt-1 font-bold">
-                  💰 {data.report.stats.salary}
-                </p>
-              </div>
-            </div>
-            <div className="p-4 bg-lime-400/10 rounded-2xl">
-              <p className="text-xs text-lime-400 font-bold mb-2">
-                💡 진로 전문가 코멘트
-              </p>
-              <p className="text-white text-sm leading-relaxed">
-                {data.report.manual}
-              </p>
-            </div>
-          </div>
-          {(isUnlocked || isPremiumMode) && (
+        {/* 잠금 해제 시: 카드 슬라이더 표시 */}
+        {isUnlocked || isPremiumMode ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <SchoolCardSlider
+              cards={schoolCards}
+              ncsField={data.report.ncsField}
+              expertComment={data.report.manual}
+            />
+            {/* 공유 버튼 */}
             <button
               onClick={handleShare}
               className="w-full mt-4 py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(163,230,53,0.4)]"
@@ -1488,8 +1710,51 @@ function ResultView({
               <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
               친구에게 내 결과 공유하기 🔗
             </button>
-          )}
-        </motion.div>
+          </motion.div>
+        ) : (
+          /* 잠금 상태: 블러된 리포트 표시 */
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-br from-lime-400/10 to-emerald-400/10 backdrop-blur-xl rounded-3xl p-5 sm:p-6 shadow-2xl blur-[6px] pointer-events-none select-none"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle className="w-6 h-6 text-lime-400" />
+              <h3 className="text-lg sm:text-xl font-black text-white">
+                📋 맞춤 진학 리포트
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
+                <GraduationCap className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">추천 학교</p>
+                  <p className="text-white font-bold text-sm sm:text-base">
+                    {data.report.recommendSchool}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
+                <Briefcase className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">NCS 직무 분야</p>
+                  <p className="text-white font-bold text-sm sm:text-base">
+                    {data.report.ncsField}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-2xl">
+                <Building2 className="w-5 h-5 text-lime-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">취업 현황</p>
+                  <p className="text-white font-bold text-sm sm:text-base">
+                    취업률 {data.report.stats.employmentRate}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* 잠금 해제 오버레이 - 블러된 리포트 위에 표시 */}
         {!isUnlocked && !isPremiumMode && (
@@ -1546,9 +1811,11 @@ function ResultView({
                       </p>
                       1. 목적: 진로 분석 결과 발송 및 상담, 지역 맞춤 학교 추천
                       <br />
-                      2. 항목: 휴대전화번호, 검사 결과 데이터, IP 기반 위치 정보(시/도)
+                      2. 항목: 휴대전화번호, 검사 결과 데이터, IP 기반 위치
+                      정보(시/도)
                       <br />
-                      3. 기간: <strong>서비스 종료 또는 동의 철회 시까지</strong>
+                      3. 기간:{" "}
+                      <strong>서비스 종료 또는 동의 철회 시까지</strong>
                       <br />
                       4. 권리: 동의를 거부할 수 있으나, 거부 시 결과 발송이
                       불가합니다.
@@ -1581,9 +1848,7 @@ function ResultView({
                 disabled={isSubmitting}
                 className="w-full py-3 sm:py-4 bg-lime-400 text-black rounded-2xl font-black text-base sm:text-lg shadow-[0_0_20px_rgba(163,230,53,0.6)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting
-                  ? "저장 중..."
-                  : "지금 바로 해제하기 →"}
+                {isSubmitting ? "저장 중..." : "지금 바로 해제하기 →"}
               </button>
             </div>
           </motion.div>
@@ -1592,19 +1857,24 @@ function ResultView({
 
       {/* 2️⃣ 정밀 리포트 (Fake Door -> Real Test Entry) 영역 */}
       {!isPremiumMode && (
-        <div className="w-full max-w-md mt-6 p-1">
+        <div className="w-full max-w-md mt-6">
           <button
             onClick={handlePremiumClick}
-            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl border border-white/20 shadow-lg relative overflow-hidden group"
+            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg relative overflow-hidden group"
           >
             <div className="absolute inset-0 bg-white/20 group-hover:translate-x-full transition-transform duration-700 skew-x-12 -ml-20 w-20"></div>
-            <span className="text-white font-black text-lg flex items-center justify-center gap-2">
-              🔒 정밀 적성 진단 (60문항) 보기
-              <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full">
-                1,000원
+            <span className="text-white font-black text-lg flex items-center justify-center gap-2 relative z-10">
+              🔒 정밀 적성진단 (60문항)
+              <span className="flex items-center gap-1">
+                <span className="text-xs bg-yellow-400 text-black px-2 py-0.5 rounded-full line-through decoration-red-500 decoration-2">
+                  1000원
+                </span>
+                <span className="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-bold">
+                  beta
+                </span>
               </span>
             </span>
-            <p className="text-indigo-200 text-xs mt-1">
+            <p className="text-indigo-200 text-xs mt-1 relative z-10">
               나의 6각형 능력치 그래프 + 상세 합격 전략 포함
             </p>
           </button>

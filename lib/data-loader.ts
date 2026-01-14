@@ -102,7 +102,7 @@ export async function loadSchoolMajorData(): Promise<SchoolMajorData[]> {
       return [];
     }
     
-    const fileContent = fs.readFileSync(filePath, 'utf-8-sig');
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
     const data = parseCSV(fileContent);
     
     return data;
