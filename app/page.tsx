@@ -1067,6 +1067,38 @@ function ResultView({
   const [isUnlocked, setIsUnlocked] = useState(initialUnlocked);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [schoolInfo, setSchoolInfo] = useState<Record<string, { schoolName: string; address: string } | null>>({});
+  const [userRegion, setUserRegion] = useState<string>("");
+
+  // IP 기반 지역 파악 및 학교 정보 로딩
+  useEffect(() => {
+    const loadSchoolInfo = async () => {
+      try {
+        // 1. IP 기반 지역 파악
+        const regionRes = await fetch("/api/schools", { method: "POST" });
+        const regionData = await regionRes.json();
+        const region = regionData.region || "Seoul";
+        setUserRegion(region);
+
+        // 2. 학과별 학교 검색
+        const majors = data?.majors || [];
+        const schoolRes = await fetch(
+          `/api/schools?majors=${encodeURIComponent(majors.join(","))}&region=${encodeURIComponent(region)}`
+        );
+        const schoolData = await schoolRes.json();
+        
+        if (schoolData.success) {
+          setSchoolInfo(schoolData.data);
+        }
+      } catch (error) {
+        console.error("Failed to load school info:", error);
+      }
+    };
+
+    if (data) {
+      loadSchoolInfo();
+    }
+  }, [data]);
 
   if (!data) return null;
 
@@ -1327,46 +1359,62 @@ function ResultView({
               ? "🎉 맞춤 추천 학과 전체 공개!"
               : "✨ AI가 분석한 맞춤 추천 학과"}
           </p>
+          {userRegion && (
+            <p className="text-[10px] text-gray-400">
+              📍 {userRegion} 기준 추천
+            </p>
+          )}
         </div>
-        <div className="flex gap-2 justify-center flex-wrap">
+        <div className="flex flex-col gap-2">
           {isUnlocked ? (
             data.majors.map((major: string, index: number) => (
-              <motion.span
+              <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm"
+                className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl"
               >
-                {major}
-              </motion.span>
+                <span className="text-lime-400 font-bold text-sm">{major}</span>
+                {schoolInfo[major] && (
+                  <span className="text-gray-300 text-xs">
+                    {schoolInfo[major]?.schoolName}
+                  </span>
+                )}
+              </motion.div>
             ))
           ) : (
             <>
               {selectedMajors.map((major: string, index: number) => (
-                <motion.span
+                <motion.div
                   key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.15 }}
-                  className="px-3 sm:px-4 py-2 bg-white/10 rounded-full text-lime-400 font-bold text-xs sm:text-sm"
+                  className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl"
                 >
-                  {major}
-                </motion.span>
+                  <span className="text-lime-400 font-bold text-sm">{major}</span>
+                  {schoolInfo[major] && (
+                    <span className="text-gray-300 text-xs">
+                      {schoolInfo[major]?.schoolName}
+                    </span>
+                  )}
+                </motion.div>
               ))}
               {[1, 2, 3].map((_, index) => (
-                <motion.span
+                <motion.div
                   key={`locked-${index}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: (index + 2) * 0.15 }}
-                  className="relative px-3 sm:px-4 py-2 bg-white/5 rounded-full text-gray-500 font-bold text-xs sm:text-sm"
+                  className="relative flex items-center justify-between px-4 py-3 bg-white/5 rounded-2xl"
                 >
-                  <span className="blur-[3px] select-none">🔒 ??? 학과</span>
+                  <span className="blur-[3px] select-none text-gray-500 font-bold text-sm">🔒 ??? 학과</span>
+                  <span className="blur-[3px] select-none text-gray-600 text-xs">??? 고등학교</span>
                   <span className="absolute inset-0 flex items-center justify-center text-gray-400">
-                    <Lock className="w-3 h-3" />
+                    <Lock className="w-4 h-4" />
                   </span>
-                </motion.span>
+                </motion.div>
               ))}
             </>
           )}
