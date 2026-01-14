@@ -6,13 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "merge-data": "node scripts/merge_school_data.js",
+    "add-ncs": "node scripts/add_ncs_codes.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
     "coolsms-node-sdk": "^2.1.0",
     "framer-motion": "^12.24.12",
     "html2canvas": "^1.4.1",
+    "iconv-lite": "^0.6.3",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "react": "19.2.3",
