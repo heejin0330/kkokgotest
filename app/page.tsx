@@ -703,17 +703,38 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const AB_VARIANTS = [
   {
     id: "A",
-    title1: "나에게 딱 맞는",
-    title2: "고등학교 학과 찾기",
-    subtitle1: "인문계? 특성화고? 내 적성은 어디일까?",
-    subtitle2: "(AI 진로 분석) 🔥",
+    title1: "삼성·토스 명함",
+    title2: "가장 빠르게 갖는 법",
+    subtitle1: "4년 먼저 시작하는 대기업 커리어",
+    subtitle2: "🏆 내 합격 루트 확인하기",
   },
   {
     id: "B",
-    title1: "3분 만에 밝혀지는",
-    title2: "나의 진짜 진로 유형",
-    subtitle1: "간단한 테스트로 숨겨진 적성을 발견해보세요",
-    subtitle2: "",
+    title1: "문제집 풀기 싫은데",
+    title2: "만들기엔 진심인 너",
+    subtitle1: "'성적'보다 '금손'으로 대학 쌉가능",
+    subtitle2: "✨ 내 재능 맞춤 학교 찾기",
+  },
+  {
+    id: "C",
+    title1: "내 성적으로",
+    title2: "마이스터고 합격될까?",
+    subtitle1: "10만 건 데이터 기반 AI 맞춤 분석",
+    subtitle2: "🎯 내 찰떡 학과 매칭받기",
+  },
+  {
+    id: "D",
+    title1: "인문계 vs 특성화고",
+    title2: "나는 어디가 맞을까?",
+    subtitle1: "간단한 테스트로 진짜 내 길 찾기",
+    subtitle2: "🔮 찰떡 고등학교 매칭 GO",
+  },
+  {
+    id: "E",
+    title1: "아직도 마이스터고가",
+    title2: "뭔지 모른다고?",
+    subtitle1: "넓어지는 진로의 선택지",
+    subtitle2: "👀 숨겨진 진로 루트 발견",
   },
 ];
 
