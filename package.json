@@ -11,13 +11,16 @@
     "add-ncs": "node scripts/add_ncs_codes.js"
   },
   "dependencies": {
+    "@prisma/client": "^7.2.0",
     "@supabase/supabase-js": "^2.90.1",
     "coolsms-node-sdk": "^2.1.0",
+    "dotenv": "^17.2.3",
     "framer-motion": "^12.24.12",
     "html2canvas": "^1.4.1",
     "iconv-lite": "^0.6.3",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
+    "prisma": "^7.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
@@ -29,6 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5",
     "xlsx": "^0.18.5"
   }

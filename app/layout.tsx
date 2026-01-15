@@ -74,7 +74,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
-                gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}');
+                gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', {
+                  // 사용자 식별을 위한 설정
+                  anonymize_ip: false,
+                  allow_google_signals: true,
+                  allow_ad_personalization_signals: true
+                });
               `}
             </Script>
           </>
