@@ -21,13 +21,24 @@ export const trackEvent = (
 };
 
 // 페이지뷰 추적
-export const trackPageView = (url: string): void => {
+export const trackPageView = (pageName: string, additionalParams?: Record<string, any>): void => {
   if (!isGAEnabled() || !GA_ID) {
     return;
   }
 
+  const url = typeof window !== "undefined" ? window.location.pathname + window.location.search : pageName;
+  
   window.gtag("config", GA_ID, {
     page_path: url,
+    page_title: pageName,
+    ...additionalParams,
+  });
+
+  // 페이지뷰 이벤트도 별도로 전송
+  trackEvent("page_view", {
+    page_name: pageName,
+    page_path: url,
+    ...additionalParams,
   });
 };
 
@@ -42,3 +53,4 @@ declare global {
     ) => void;
   }
 }
+

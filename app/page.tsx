@@ -42,7 +42,7 @@ import {
   type HollandType,
   type Question,
 } from "./data/questions";
-import { trackEvent } from "@/lib/gtag";
+import { trackEvent, trackPageView } from "@/lib/gtag";
 
 // ------------------------------------------------------------------
 // [0] TypeScript 타입 정의
@@ -798,7 +798,12 @@ function useTestLogic(): UseTestLogicReturn {
     setQuestions(newQuestions);
     setCurrentIndex(0);
     setScores({ R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 });
-    setStartTime(Date.now());
+    const now = Date.now();
+    setStartTime(now);
+    // 테스트 시작 시간을 localStorage에 저장 (GA4 이벤트에서 사용)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("test_start_time", now.toString());
+    }
     // 정밀진단 모드일 때 answers 배열 초기화
     if (isPremium) {
       setAnswers(new Array(newQuestions.length).fill(null));
@@ -962,7 +967,10 @@ function StartScreen({ onStart }: { onStart: () => void }) {
   }, []);
 
   const handleStart = () => {
-    trackEvent("click_event_start");
+    trackEvent("test_start", {
+      ab_variant: variant?.id || "unknown",
+      test_mode: "basic",
+    });
     // A/B 테스트 클릭 기록
     if (variant) {
       recordABTestClick(variant.id);
@@ -1385,8 +1393,10 @@ function ResultView({
     }
 
     // GA4 이벤트 전송
-    trackEvent("click_free_major", {
+    trackEvent("unlock_report", {
       result_type: resultType,
+      test_mode: isPremiumMode ? "premium" : "basic",
+      action: "phone_submit",
     });
 
     setIsSubmitting(true);
@@ -1457,6 +1467,11 @@ function ResultView({
     if (navigator.share) {
       try {
         await navigator.share(shareData);
+        trackEvent("share_native", {
+          result_type: resultType,
+          test_mode: isPremiumMode ? "premium" : "basic",
+          share_method: "native_share",
+        });
       } catch (err) {
         // 사용자가 공유를 취소한 경우는 무시
         if ((err as Error).name !== "AbortError") {
@@ -1473,6 +1488,11 @@ function ResultView({
     const shareUrl = getShareUrl();
     try {
       await navigator.clipboard.writeText(shareUrl);
+      trackEvent("share_copy_link", {
+        result_type: resultType,
+        test_mode: isPremiumMode ? "premium" : "basic",
+        share_method: "copy_link",
+      });
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
       setShowShareModal(false);
@@ -1529,6 +1549,11 @@ function ResultView({
           },
         ],
       });
+      trackEvent("share_kakao", {
+        result_type: resultType,
+        test_mode: isPremiumMode ? "premium" : "basic",
+        share_method: "kakao",
+      });
     } catch (err) {
       console.error("카카오톡 공유 실패:", err);
       alert("카카오톡 공유에 실패했습니다. 잠시 후 다시 시도해주세요.");
@@ -1558,6 +1583,12 @@ function ResultView({
       link.href = canvas.toDataURL("image/png");
       link.click();
 
+      trackEvent("share_save_image", {
+        result_type: resultType,
+        test_mode: isPremiumMode ? "premium" : "basic",
+        share_method: "save_image",
+      });
+
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
       setShowShareModal(false);
@@ -1568,6 +1599,11 @@ function ResultView({
   };
 
   const handleInstagramInfo = () => {
+    trackEvent("share_instagram_info", {
+      result_type: resultType,
+      test_mode: isPremiumMode ? "premium" : "basic",
+      share_method: "instagram",
+    });
     alert(
       "💡 인스타그램 공유 방법\n\n1. 위의 '이미지 저장' 버튼을 눌러 결과 이미지를 저장하세요.\n2. 인스타그램 앱을 열고 스토리 또는 게시물을 만드세요.\n3. 저장한 이미지를 선택하여 업로드하세요!\n\n✨ 멋진 결과를 친구들과 공유해보세요!"
     );
@@ -1579,7 +1615,11 @@ function ResultView({
       const confirmMsg =
         "🎉 [베타 서비스 혜택]\n\n지금은 정밀 진단(60문항) 기능 오픈 기념으로\n1000원 결제 없이 무료로 진행됩니다!\n\n바로 60문항 검사를 시작하시겠습니까?";
       if (confirm(confirmMsg)) {
-        trackEvent("click_beta_start");
+        trackEvent("premium_test_start", {
+          result_type: resultType,
+          source: "result_page",
+          test_mode: "premium",
+        });
         onStartPremiumTest();
       }
       return;
@@ -2233,6 +2273,18 @@ export default function Home() {
         setFinalResultType(typeParam);
         setIsSharedLink(true);
         setStage("result");
+        
+        // 공유 링크로 접근한 경우 페이지뷰 추적
+        trackPageView("page_result", {
+          result_type: typeParam,
+          test_mode: "shared_link",
+          is_shared_link: true,
+        });
+      } else {
+        // 일반 접근 시 시작 페이지뷰 추적
+        trackPageView("page_start", {
+          is_shared_link: false,
+        });
       }
     }
   }, []);
@@ -2249,40 +2301,108 @@ export default function Home() {
         localStorage.setItem("simpleTestDate", new Date().toISOString());
       }
 
+      // GA4 이벤트: 테스트 완료
+      const startTime = typeof window !== "undefined" ? localStorage.getItem("test_start_time") : null;
+      const testDuration = startTime ? Date.now() - parseInt(startTime) : null;
+      
+      trackEvent("test_complete", {
+        result_type: calculatedType,
+        test_mode: isPremiumMode ? "premium" : "basic",
+        question_count: questions.length,
+        test_duration_ms: testDuration,
+        progress: 100,
+      });
+
+      // 정밀 진단 완료 시 별도 이벤트
+      if (isPremiumMode) {
+        trackEvent("premium_test_complete", {
+          result_type: calculatedType,
+          result_title: RESULT_DATA[calculatedType]?.title || "unknown",
+          result_type_name: RESULT_DATA[calculatedType]?.type || "unknown",
+          question_count: questions.length,
+          test_duration_ms: testDuration,
+        });
+      }
+
+      // 결과 타입별 추적
+      trackEvent("test_result", {
+        result_type: calculatedType,
+        result_title: RESULT_DATA[calculatedType]?.title || "unknown",
+        result_type_name: RESULT_DATA[calculatedType]?.type || "unknown",
+        test_mode: isPremiumMode ? "premium" : "basic",
+      });
+
       setStage("analyzing");
     }
-  }, [isTestComplete, stage, getResult, isPremiumMode]);
+  }, [isTestComplete, stage, getResult, isPremiumMode, questions.length]);
 
   const handleAnalysisComplete = useCallback(() => {
     setStage("result");
     if (typeof window !== "undefined" && finalResultType) {
       const newUrl = `${window.location.pathname}?type=${finalResultType}`;
       window.history.replaceState(null, "", newUrl);
+      
+      // 페이지뷰 추적
+      trackPageView("page_result", {
+        result_type: finalResultType,
+        test_mode: isPremiumMode ? "premium" : "basic",
+        is_shared_link: false,
+      });
     }
-  }, [finalResultType]);
+  }, [finalResultType, isPremiumMode]);
 
   const handleSwipeAnswer = useCallback(
     (answer: string) => {
-      if (currentQuestion) handleSwipe(answer, currentQuestion.type);
+      if (currentQuestion) {
+        handleSwipe(answer, currentQuestion.type);
+        
+        // 질문 답변 추적 (진행률과 함께)
+        trackEvent("question_answer", {
+          question_index: currentIndex,
+          question_type: currentQuestion.type,
+          answer: answer,
+          progress: Math.round((currentIndex / questions.length) * 100),
+          test_mode: isPremiumMode ? "premium" : "basic",
+        });
+      }
     },
-    [currentQuestion, handleSwipe]
+    [currentQuestion, handleSwipe, currentIndex, questions.length, isPremiumMode]
   );
 
   const handleRestart = useCallback(() => {
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", window.location.pathname);
     }
+    
+    // 테스트 재시작 이벤트 추적
+    trackEvent("test_restart", {
+      previous_result_type: finalResultType || "none",
+      previous_test_mode: isPremiumMode ? "premium" : "basic",
+    });
+    
     setFinalResultType(null);
     setIsSharedLink(false);
     setIsPremiumMode(false);
     initTest("basic");
     setStage("start");
-  }, [initTest]);
+    
+    // 시작 페이지뷰 추적
+    trackPageView("page_start", {
+      is_shared_link: false,
+      action: "restart",
+    });
+  }, [initTest, finalResultType, isPremiumMode]);
 
   const handleStartPremiumTest = useCallback(() => {
     setIsPremiumMode(true);
     initTest("premium");
     setStage("test");
+    
+    // 정밀 진단 페이지뷰 추적
+    trackPageView("page_test", {
+      test_mode: "premium",
+      question_count: 60,
+    });
   }, [initTest]);
 
   const resultScores = isSharedLink ? null : scores;
@@ -2306,7 +2426,14 @@ export default function Home() {
                 exit={{ opacity: 0 }}
                 className="flex-1 pt-14 sm:pt-16"
               >
-                <StartScreen onStart={() => setStage("test")} />
+                <StartScreen onStart={() => {
+                  setStage("test");
+                  // 기본 테스트 시작 페이지뷰 추적
+                  trackPageView("page_test", {
+                    test_mode: "basic",
+                    question_count: 12,
+                  });
+                }} />
               </motion.div>
             )}
             {stage === "test" && !isTestComplete && (
