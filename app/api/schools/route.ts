@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
 
-interface SchoolData {
-  schoolName: string;
-  majorName: string;
-  region: string;
-  address: string;
-  schoolType: string;
-}
+// Supabase 클라이언트 생성
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface EmploymentStats {
   schoolName: string;
@@ -21,46 +19,14 @@ interface EmploymentStats {
   surveyYear: string;
 }
 
-// CSV 파싱 함수 (기존 master DB용)
-function parseCSV(content: string): SchoolData[] {
-  const lines = content.split("\n");
-  const headers = lines[0].split(",");
-  
-  // 필요한 컬럼 인덱스 찾기
-  const schoolNameIdx = headers.findIndex(h => h.includes("학교명"));
-  const majorNameIdx = headers.findIndex(h => h.includes("학과명"));
-  const regionIdx = headers.findIndex(h => h.includes("시도명"));
-  const addressIdx = headers.findIndex(h => h.includes("도로명주소"));
-  const schoolTypeIdx = headers.findIndex(h => h.includes("고등학교구분명"));
-  
-  const schools: SchoolData[] = [];
-  
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-    
-    // CSV 파싱 (쉼표 처리)
-    const values = parseCSVLine(line);
-    
-    const schoolName = values[schoolNameIdx] || "";
-    const majorName = values[majorNameIdx] || "";
-    const region = values[regionIdx] || "";
-    const address = values[addressIdx] || "";
-    const schoolType = values[schoolTypeIdx] || "";
-    
-    // 특성화고/마이스터고만 필터링
-    if (schoolType === "특성화고" || schoolType === "마이스터고") {
-      schools.push({
-        schoolName,
-        majorName,
-        region,
-        address,
-        schoolType,
-      });
-    }
-  }
-  
-  return schools;
+export interface SchoolResult {
+  schoolName: string;
+  address: string;
+  employmentRate: number | null;
+  enrollmentRate: number | null;
+  graduates: number | null;
+  surveyYear: string | null;
+  schoolType: string | null;
 }
 
 // CSV 라인 파싱 (따옴표 처리)
@@ -84,12 +50,11 @@ function parseCSVLine(line: string): string[] {
   return values;
 }
 
-// 취업률/진학률 CSV 파싱
+// 취업률/진학률 CSV 파싱 (보조 데이터)
 function parseEmploymentStats(content: string): EmploymentStats[] {
   const lines = content.split("\n");
   const stats: EmploymentStats[] = [];
   
-  // 헤더: 학교명,학과명,시도,고교유형,졸업자수,취업률,진학률,조사연도
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
@@ -112,56 +77,60 @@ function parseEmploymentStats(content: string): EmploymentStats[] {
   return stats;
 }
 
-// 지역명 정규화 (IP API 응답과 CSV 매칭)
+// 지역명 정규화 (IP API 응답과 DB 매칭)
 function normalizeRegion(region: string): string {
   const mapping: Record<string, string> = {
-    "Seoul": "서울특별시",
-    "Busan": "부산광역시",
-    "Daegu": "대구광역시",
-    "Incheon": "인천광역시",
-    "Gwangju": "광주광역시",
-    "Daejeon": "대전광역시",
-    "Ulsan": "울산광역시",
-    "Sejong": "세종특별자치시",
-    "Gyeonggi-do": "경기도",
-    "Gangwon-do": "강원특별자치도",
-    "Chungcheongbuk-do": "충청북도",
-    "Chungcheongnam-do": "충청남도",
-    "Jeollabuk-do": "전북특별자치도",
-    "Jeollanam-do": "전라남도",
-    "Gyeongsangbuk-do": "경상북도",
-    "Gyeongsangnam-do": "경상남도",
-    "Jeju-do": "제주특별자치도",
+    "Seoul": "서울",
+    "Busan": "부산",
+    "Daegu": "대구",
+    "Incheon": "인천",
+    "Gwangju": "광주",
+    "Daejeon": "대전",
+    "Ulsan": "울산",
+    "Sejong": "세종",
+    "Gyeonggi-do": "경기",
+    "Gangwon-do": "강원",
+    "Chungcheongbuk-do": "충북",
+    "Chungcheongnam-do": "충남",
+    "Jeollabuk-do": "전북",
+    "Jeollanam-do": "전남",
+    "Gyeongsangbuk-do": "경북",
+    "Gyeongsangnam-do": "경남",
+    "Jeju-do": "제주",
   };
   
   return mapping[region] || region;
 }
 
-// 학과명 매칭 (부분 일치)
-function matchMajor(searchMajor: string, dbMajor: string): boolean {
-  // 이모지 및 특수문자 제거 강화
-  const cleanSearch = searchMajor
+// 학과명 정규화 (이모지 제거)
+function cleanMajorName(major: string): string {
+  return major
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // 이모지 제거
-    .replace(/[^\w가-힣]/g, "")
-    .replace(/과$/, "")
-    .toLowerCase()
+    .replace(/[\u{2600}-\u{26FF}]/gu, "")   // 기타 심볼 이모지
+    .replace(/[\u{2700}-\u{27BF}]/gu, "")   // Dingbats
+    .replace(/[^\w가-힣\s]/g, "")           // 특수문자 제거 (공백 유지)
     .trim();
-    
-  const cleanDb = dbMajor
-    .replace(/[^\w가-힣]/g, "")
-    .replace(/과$/, "")
-    .toLowerCase()
+}
+
+// 학과명에서 핵심 키워드 추출
+function extractMajorKeyword(major: string): string {
+  const cleaned = cleanMajorName(major).replace(/과$/, "").replace(/학$/, "");
+  // 일반적인 접두사/접미사 제거
+  return cleaned
+    .replace(/^(스마트|글로벌|융합|창의|미래|첨단)/, "")
+    .replace(/(시스템|공학|학과|전공)$/, "")
     .trim();
+}
+
+// 학과명 매칭 (부분 일치)
+function matchMajorName(searchMajor: string, dbMajor: string): boolean {
+  const cleanSearch = cleanMajorName(searchMajor).replace(/과$/, "").toLowerCase();
+  const cleanDb = dbMajor.replace(/과$/, "").toLowerCase();
   
-  // 완전 일치
   if (cleanSearch === cleanDb) return true;
-  
-  // 부분 일치
   if (cleanDb.includes(cleanSearch) || cleanSearch.includes(cleanDb)) return true;
   
-  // 키워드 매칭
-  const keywords = cleanSearch.split(/[^가-힣a-z0-9]/i).filter(k => k.length > 1);
-  return keywords.some(keyword => cleanDb.includes(keyword));
+  return false;
 }
 
 // 학과 특성에 따른 정렬 기준 결정
@@ -196,58 +165,29 @@ function getSortCriteria(major: string): "employment" | "enrollment" | "combined
     return "employment";
   }
   
-  // 기타 → 합산 점수
   return "combined";
-}
-
-// 학교 정렬 함수
-function sortSchools(
-  schools: (SchoolResult & { major: string })[],
-  criteria: "employment" | "enrollment" | "combined"
-): (SchoolResult & { major: string })[] {
-  return [...schools].sort((a, b) => {
-    if (criteria === "employment") {
-      const aRate = a.employmentRate ?? 0;
-      const bRate = b.employmentRate ?? 0;
-      return bRate - aRate;
-    } else if (criteria === "enrollment") {
-      const aRate = a.enrollmentRate ?? 0;
-      const bRate = b.enrollmentRate ?? 0;
-      return bRate - aRate;
-    } else {
-      // combined: 취업률 + 진학률 합산
-      const aTotal = (a.employmentRate ?? 0) + (a.enrollmentRate ?? 0);
-      const bTotal = (b.employmentRate ?? 0) + (b.enrollmentRate ?? 0);
-      return bTotal - aTotal;
-    }
-  });
-}
-
-export interface SchoolResult {
-  schoolName: string;
-  address: string;
-  employmentRate: number | null;
-  enrollmentRate: number | null;
-  graduates: number | null;
-  surveyYear: string | null;
-  schoolType: string | null;
 }
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const majors = searchParams.get("majors")?.split(",") || [];
-  const region = searchParams.get("region") || "서울특별시";
+  const region = searchParams.get("region") || "서울";
+  
+  // Supabase 연결 확인
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Supabase credentials missing");
+    return NextResponse.json(
+      { success: false, error: "Database configuration error" },
+      { status: 500 }
+    );
+  }
   
   try {
-    // 기존 master DB 읽기
-    const csvPath = path.join(process.cwd(), "app/data/kkokgo_master_db.csv");
-    const content = fs.readFileSync(csvPath, "utf-8");
-    const schools = parseCSV(content);
+    const results: Record<string, SchoolResult[]> = {};
     
-    // 취업률/진학률 데이터 읽기
-    const statsPath = path.join(process.cwd(), "app/data/school_employment_stats.csv");
+    // 취업률 데이터 로드 (보조 데이터로 사용)
     let employmentStats: EmploymentStats[] = [];
-    
+    const statsPath = path.join(process.cwd(), "app/data/school_employment_stats.csv");
     if (fs.existsSync(statsPath)) {
       const statsContent = fs.readFileSync(statsPath, "utf-8");
       employmentStats = parseEmploymentStats(statsContent);
@@ -255,57 +195,118 @@ export async function GET(request: NextRequest) {
     
     // 지역 정규화
     const normalizedRegion = normalizeRegion(region);
-    const regionPrefix = normalizedRegion.slice(0, 2);
-    
-    // 학과별 학교 찾기 (여러 학교를 찾아서 정렬)
-    const results: Record<string, SchoolResult[]> = {};
     
     for (const major of majors) {
-      // 해당 학과와 매칭되는 모든 학교 찾기 (전국)
-      let matchedStats = employmentStats.filter(s => matchMajor(major, s.majorName));
+      const cleanedMajor = cleanMajorName(major);
+      const keyword = extractMajorKeyword(major);
+      const searchTerms = [cleanedMajor, cleanedMajor.replace(/과$/, ""), keyword].filter(Boolean);
       
-      // 매칭 실패 시 유사한 학과 찾기 (키워드 기반)
-      if (matchedStats.length === 0) {
-        const majorKeywords = major
-          .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // 이모지 제거
-          .replace(/[^\w가-힣]/g, "")
-          .toLowerCase()
-          .split(/\s+/)
-          .filter(k => k.length > 1);
+      console.log(`Searching for major: "${major}" -> cleaned: "${cleanedMajor}", keyword: "${keyword}"`);
+      
+      // 1. Supabase에서 학과 검색 (majors 테이블) - 여러 검색어로 시도
+      let majorData: { id: number; name: string }[] = [];
+      
+      for (const term of searchTerms) {
+        if (!term || term.length < 2) continue;
         
-        matchedStats = employmentStats.filter(s => {
-          const dbMajor = s.majorName.toLowerCase();
-          return majorKeywords.some(keyword => dbMajor.includes(keyword));
-        });
+        const { data, error: majorError } = await supabase
+          .from("majors")
+          .select("id, name")
+          .ilike("name", `%${term}%`)
+          .limit(10);
+        
+        if (majorError) {
+          console.error(`Major search error for "${term}":`, majorError.message);
+          continue;
+        }
+        
+        if (data && data.length > 0) {
+          majorData = data;
+          console.log(`Found majors for term "${term}":`, data.map(d => d.name));
+          break;
+        }
       }
       
-      // 학교 정보 조합
-      const schoolResults: (SchoolResult & { major: string })[] = matchedStats.map(stat => {
-        // 주소 정보 보완을 위해 master DB에서 찾기
-        const schoolMatch = schools.find(
-          s => s.schoolName === stat.schoolName && matchMajor(major, s.majorName)
+      if (majorData.length === 0) {
+        // 매칭되는 학과가 없으면 빈 배열
+        console.log(`No major found for any term: ${searchTerms.join(", ")}`);
+        results[major] = [];
+        continue;
+      }
+      
+      // 2. 해당 학과를 개설한 학교 목록 조회 (school_departments + schools JOIN)
+      const majorIds = majorData.map(m => m.id);
+      
+      const { data: schoolDepts, error: schoolError } = await supabase
+        .from("school_departments")
+        .select(`
+          id,
+          custom_name,
+          major:majors(id, name),
+          school:schools(id, name, region, address, school_type)
+        `)
+        .in("major_id", majorIds);
+      
+      if (schoolError) {
+        console.error(`School dept search error:`, schoolError.message);
+      }
+      
+      if (!schoolDepts || schoolDepts.length === 0) {
+        console.log(`No school_departments found for major IDs:`, majorIds);
+        results[major] = [];
+        continue;
+      }
+      
+      console.log(`Found ${schoolDepts.length} school_departments for ${major}`);
+      
+      // 3. 학교 결과 조합
+      const schoolResults: SchoolResult[] = schoolDepts.map(sd => {
+        const school = sd.school as any;
+        const majorInfo = sd.major as any;
+        
+        // 취업률 데이터 매칭 (CSV에서)
+        const stats = employmentStats.find(s => 
+          s.schoolName === school?.name && 
+          matchMajorName(majorInfo?.name || "", s.majorName)
         );
         
         return {
-          schoolName: stat.schoolName,
-          address: schoolMatch?.address || stat.region || "",
-          employmentRate: stat.employmentRate,
-          enrollmentRate: stat.enrollmentRate,
-          graduates: stat.graduates,
-          surveyYear: stat.surveyYear,
-          schoolType: stat.schoolType,
-          major: major,
+          schoolName: school?.name || "",
+          address: school?.address || school?.region || "",
+          employmentRate: stats?.employmentRate ?? null,
+          enrollmentRate: stats?.enrollmentRate ?? null,
+          graduates: stats?.graduates ?? null,
+          surveyYear: stats?.surveyYear ?? null,
+          schoolType: school?.school_type === "MEISTER" ? "마이스터고" : 
+                      school?.school_type === "SPECIALIZED" ? "특성화고" : 
+                      school?.school_type || null,
         };
       });
       
-      // 학과 특성에 따라 정렬 기준 결정
+      // 4. 정렬 (취업률/진학률 기준)
       const sortCriteria = getSortCriteria(major);
       
-      // 정렬 후 상위 5개만 선택
-      const sortedSchools = sortSchools(schoolResults, sortCriteria).slice(0, 5);
+      const sortedSchools = [...schoolResults].sort((a, b) => {
+        if (sortCriteria === "employment") {
+          return (b.employmentRate ?? 0) - (a.employmentRate ?? 0);
+        } else if (sortCriteria === "enrollment") {
+          return (b.enrollmentRate ?? 0) - (a.enrollmentRate ?? 0);
+        } else {
+          const aTotal = (a.employmentRate ?? 0) + (a.enrollmentRate ?? 0);
+          const bTotal = (b.employmentRate ?? 0) + (b.enrollmentRate ?? 0);
+          return bTotal - aTotal;
+        }
+      });
       
-      // major 필드 제거하고 반환
-      results[major] = sortedSchools.map(({ major: _, ...rest }) => rest);
+      // 5. 지역 우선순위 적용 (같은 지역 학교 먼저)
+      const regionPrefix = normalizedRegion.slice(0, 2);
+      const prioritizedSchools = [
+        ...sortedSchools.filter(s => s.address?.includes(regionPrefix)),
+        ...sortedSchools.filter(s => !s.address?.includes(regionPrefix)),
+      ];
+      
+      // 상위 5개만 반환
+      results[major] = prioritizedSchools.slice(0, 5);
     }
     
     return NextResponse.json({ success: true, data: results });

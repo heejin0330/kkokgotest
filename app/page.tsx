@@ -1469,11 +1469,8 @@ function ResultView({
   };
 
   const getShareUrl = () => {
-    let shareUrl = window.location.href;
-    if (!shareUrl.includes("type=")) {
-      shareUrl = `${window.location.origin}${window.location.pathname}?type=${resultType}`;
-    }
-    return shareUrl;
+    // 공유 링크에는 shared=true 파라미터 추가 (본인 결과와 구분)
+    return `${window.location.origin}${window.location.pathname}?type=${resultType}&shared=true`;
   };
 
   const handleShare = async () => {
@@ -2271,16 +2268,22 @@ export default function Home() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const typeParam = params.get("type");
+      const sharedParam = params.get("shared"); // 공유 링크 구분용
+      
       if (isValidHollandType(typeParam)) {
+        // 본인이 테스트를 완료한 세션인지 확인
+        const myTestResult = sessionStorage.getItem("myTestResult");
+        const isReallySharedLink = sharedParam === "true" || myTestResult !== typeParam;
+        
         setFinalResultType(typeParam);
-        setIsSharedLink(true);
+        setIsSharedLink(isReallySharedLink);
         setStage("result");
         
         // 공유 링크로 접근한 경우 페이지뷰 추적
         trackPageView("page_result", {
           result_type: typeParam,
-          test_mode: "shared_link",
-          is_shared_link: true,
+          test_mode: isReallySharedLink ? "shared_link" : "own_result",
+          is_shared_link: isReallySharedLink,
         });
       } else {
         // 일반 접근 시 시작 페이지뷰 추적
@@ -2301,6 +2304,11 @@ export default function Home() {
       if (!isPremiumMode && typeof window !== "undefined") {
         localStorage.setItem("simpleTestResult", calculatedType);
         localStorage.setItem("simpleTestDate", new Date().toISOString());
+      }
+      
+      // 본인 테스트 결과임을 sessionStorage에 저장 (새로고침 시 공유 링크로 인식 방지)
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("myTestResult", calculatedType);
       }
 
       // GA4 이벤트: 테스트 완료
