@@ -1322,7 +1322,7 @@ function ResultView({
   onRestart: () => void;
 }) {
   const data = RESULT_DATA[resultType];
-  const [selectedMajors] = useState(() => getRandomMajors(resultType, 2));
+  const [selectedMajors] = useState(() => getRandomMajors(resultType, 3));
   const [phone, setPhone] = useState("");
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
@@ -1724,25 +1724,6 @@ function ResultView({
                       {schoolInfo[major][0].schoolName}
                     </span>
                   )}
-                </motion.div>
-              ))}
-              {[1, 2, 3].map((_, index) => (
-                <motion.div
-                  key={`locked-${index}`}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: (index + 2) * 0.15 }}
-                  className="relative flex items-center justify-between px-4 py-3 bg-white/5 rounded-2xl"
-                >
-                  <span className="blur-[3px] select-none text-gray-500 font-bold text-sm">
-                    🔒 ??? 학과
-                  </span>
-                  <span className="blur-[3px] select-none text-gray-600 text-xs">
-                    ??? 고등학교
-                  </span>
-                  <span className="absolute inset-0 flex items-center justify-center text-gray-400">
-                    <Lock className="w-4 h-4" />
-                  </span>
                 </motion.div>
               ))}
             </>

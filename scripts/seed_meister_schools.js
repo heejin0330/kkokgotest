@@ -1,60 +1,70 @@
 /**
- * 마이스터고 학교/학과 데이터 시딩 스크립트
- * 
+ * 마이스터고 학교/학과 데이터 시딩 스크립트 (하이브리드 구조)
+ *
  * 실행 방법:
  * node scripts/seed_meister_schools.js
- * 
+ *
  * 필요 환경변수:
  * - NEXT_PUBLIC_SUPABASE_URL
  * - NEXT_PUBLIC_SUPABASE_ANON_KEY (또는 SUPABASE_SERVICE_ROLE_KEY)
  */
 
-const fs = require('fs');
-const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
+const fs = require("fs");
+const path = require("path");
+const { createClient } = require("@supabase/supabase-js");
 
 // dotenv 로드
-require('dotenv').config({ path: '.env' });
-require('dotenv').config({ path: '.env.local' });
+require("dotenv").config({ path: ".env" });
+require("dotenv").config({ path: ".env.local" });
 
 // Supabase 클라이언트 설정
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Supabase 환경변수가 설정되지 않았습니다.');
-  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅' : '❌');
-  console.error('SUPABASE_SERVICE_ROLE_KEY 또는 NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseKey ? '✅' : '❌');
+  console.error("❌ Supabase 환경변수가 설정되지 않았습니다.");
+  console.error("NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅" : "❌");
+  console.error(
+    "SUPABASE_SERVICE_ROLE_KEY 또는 NEXT_PUBLIC_SUPABASE_ANON_KEY:",
+    supabaseKey ? "✅" : "❌"
+  );
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // CSV 파일 경로
-const CSV_PATH = path.join(__dirname, '..', 'app', 'data', 'kkokgo_master_db.csv');
+const CSV_PATH = path.join(
+  __dirname,
+  "..",
+  "app",
+  "data",
+  "kkokgo_master_db.csv"
+);
 
 /**
  * CSV 파일을 파싱하여 객체 배열로 반환
  */
 function parseCSV(csvContent) {
-  const lines = csvContent.split('\n');
-  const headers = lines[0].split(',');
-  
+  const lines = csvContent.split("\n");
+  const headers = lines[0].split(",");
+
   const data = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    
-    // CSV 파싱 (쉼표가 값 안에 있을 수 있으므로 주의)
+
     const values = parseCSVLine(line);
-    
+
     const row = {};
     headers.forEach((header, index) => {
-      row[header.trim()] = values[index]?.trim() || '';
+      row[header.trim()] = values[index]?.trim() || "";
     });
     data.push(row);
   }
-  
+
   return data;
 }
 
@@ -63,23 +73,23 @@ function parseCSV(csvContent) {
  */
 function parseCSVLine(line) {
   const result = [];
-  let current = '';
+  let current = "";
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
-    
+
     if (char === '"') {
       inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === "," && !inQuotes) {
       result.push(current);
-      current = '';
+      current = "";
     } else {
       current += char;
     }
   }
   result.push(current);
-  
+
   return result;
 }
 
@@ -87,9 +97,9 @@ function parseCSVLine(line) {
  * 마이스터고 데이터 필터링
  */
 function filterMeisterSchools(data) {
-  return data.filter(row => 
-    row['고등학교구분명'] === '마이스터고' || 
-    row['학교구분'] === '마이스터고'
+  return data.filter(
+    (row) =>
+      row["고등학교구분명"] === "마이스터고" || row["학교구분"] === "마이스터고"
   );
 }
 
@@ -98,96 +108,118 @@ function filterMeisterSchools(data) {
  */
 function extractSchools(meisterData) {
   const schoolMap = new Map();
-  
-  meisterData.forEach(row => {
-    const schoolCode = row['행정표준코드'];
+
+  meisterData.forEach((row) => {
+    const schoolCode = row["행정표준코드"];
     if (!schoolCode || schoolMap.has(schoolCode)) return;
-    
+
     schoolMap.set(schoolCode, {
-      id: `school_${schoolCode}`,
-      name: row['학교명'],
-      foundation_type: row['설립명'] || '미정',
-      designation_th: '미정', // CSV에 없으므로 기본값
-      region: row['시도명'] || null,
-      address: row['도로명주소'] || null,
-      phone: row['전화번호'] || null,
-      homepage: row['홈페이지주소'] || null,
+      admin_code: schoolCode,
+      name: row["학교명"],
+      school_type: "MEISTER",
+      foundation_type: row["설립명"] || "미정",
+      designation_th: "미정",
+      region: row["시도명"] || null,
+      address: row["도로명주소"] || null,
+      phone: row["전화번호"] || null,
+      homepage: row["홈페이지주소"] || null,
     });
   });
-  
+
   return Array.from(schoolMap.values());
 }
 
 /**
- * 학과 데이터 추출 (중복 제거)
+ * 학과 유형(Majors) 데이터 추출 (중복 제거)
  */
-function extractDepartments(meisterData) {
-  const deptSet = new Set();
-  const departments = [];
-  
-  meisterData.forEach(row => {
-    const schoolCode = row['행정표준코드'];
-    const deptName = row['학과명'];
-    
-    if (!schoolCode || !deptName) return;
-    
-    // 공통과정, 일반학과 등은 제외
-    if (deptName.includes('공통') || deptName === '일반학과') return;
-    
-    const key = `${schoolCode}_${deptName}`;
-    if (deptSet.has(key)) return;
-    deptSet.add(key);
-    
-    // 고유 ID 생성 (학교코드 + 학과명 해시)
-    const deptId = `dept_${schoolCode}_${deptSet.size}`;
-    departments.push({
-      id: deptId,
+function extractMajors(meisterData) {
+  const majorMap = new Map();
+
+  meisterData.forEach((row) => {
+    const deptName = row["학과명"];
+
+    if (!deptName) return;
+    if (deptName.includes("공통") || deptName === "일반학과") return;
+
+    if (majorMap.has(deptName)) return;
+
+    majorMap.set(deptName, {
       name: deptName,
-      description: row['NCS_매칭키워드'] || null,
-      school_id: `school_${schoolCode}`,
+      description: row["NCS_매칭키워드"] || null,
+      category: null,
     });
   });
-  
-  return departments;
+
+  return Array.from(majorMap.values());
 }
 
 /**
- * 기존 시드 데이터 정리 (선택적)
+ * 학교-학과 연결 데이터 추출
+ */
+function extractSchoolDepartments(meisterData) {
+  const sdSet = new Set();
+  const schoolDepts = [];
+
+  meisterData.forEach((row) => {
+    const schoolCode = row["행정표준코드"];
+    const deptName = row["학과명"];
+
+    if (!schoolCode || !deptName) return;
+    if (deptName.includes("공통") || deptName === "일반학과") return;
+
+    const key = `${schoolCode}_${deptName}`;
+    if (sdSet.has(key)) return;
+    sdSet.add(key);
+
+    schoolDepts.push({
+      admin_code: schoolCode,
+      major_name: deptName,
+    });
+  });
+
+  return schoolDepts;
+}
+
+/**
+ * 기존 마이스터고 데이터 정리
  */
 async function cleanExistingData() {
-  console.log('🧹 기존 시드 데이터 정리 중...');
-  
-  // department_traits에서 school_ 또는 dept_로 시작하는 것들 삭제
-  const { error: dtError } = await supabase
-    .from('department_traits')
-    .delete()
-    .like('department_id', 'dept_%');
-  
-  if (dtError) {
-    console.warn('⚠️ department_traits 정리 실패:', dtError.message);
+  console.log("🧹 기존 마이스터고 데이터 정리 중...");
+
+  // 마이스터고 학교 조회
+  const { data: schools } = await supabase
+    .from("schools")
+    .select("id")
+    .eq("school_type", "MEISTER");
+
+  if (schools && schools.length > 0) {
+    const schoolIds = schools.map((s) => s.id);
+
+    // 관련 school_departments 조회
+    const { data: schoolDepts } = await supabase
+      .from("school_departments")
+      .select("id")
+      .in("school_id", schoolIds);
+
+    if (schoolDepts && schoolDepts.length > 0) {
+      const sdIds = schoolDepts.map((sd) => sd.id);
+
+      // FK 순서대로 삭제
+      await supabase
+        .from("admission_rules")
+        .delete()
+        .in("school_department_id", sdIds);
+      await supabase
+        .from("target_companies")
+        .delete()
+        .in("school_department_id", sdIds);
+      await supabase.from("school_departments").delete().in("id", sdIds);
+    }
+
+    await supabase.from("schools").delete().in("id", schoolIds);
   }
-  
-  // departments 삭제
-  const { error: deptError } = await supabase
-    .from('departments')
-    .delete()
-    .like('id', 'dept_%');
-  
-  if (deptError) {
-    console.warn('⚠️ departments 정리 실패:', deptError.message);
-  }
-  
-  // schools 삭제
-  const { error: schoolError } = await supabase
-    .from('schools')
-    .delete()
-    .like('id', 'school_%');
-  
-  if (schoolError) {
-    console.warn('⚠️ schools 정리 실패:', schoolError.message);
-  }
-  
-  console.log('✅ 정리 완료');
+
+  console.log("✅ 정리 완료");
 }
 
 /**
@@ -195,56 +227,124 @@ async function cleanExistingData() {
  */
 async function insertSchools(schools) {
   console.log(`📚 ${schools.length}개 학교 데이터 삽입 중...`);
-  
-  // 배치로 삽입 (50개씩)
+
   const batchSize = 50;
   let insertedCount = 0;
-  
+
   for (let i = 0; i < schools.length; i += batchSize) {
     const batch = schools.slice(i, i + batchSize);
-    
+
     const { data, error } = await supabase
-      .from('schools')
-      .upsert(batch, { onConflict: 'id' })
+      .from("schools")
+      .upsert(batch, { onConflict: "admin_code" })
       .select();
-    
+
     if (error) {
-      console.error(`❌ 학교 삽입 오류 (배치 ${i / batchSize + 1}):`, error.message);
+      console.error(
+        `❌ 학교 삽입 오류 (배치 ${i / batchSize + 1}):`,
+        error.message
+      );
     } else {
       insertedCount += data?.length || 0;
     }
   }
-  
+
   console.log(`✅ ${insertedCount}개 학교 삽입 완료`);
   return insertedCount;
 }
 
 /**
- * 학과 데이터 삽입
+ * 학과 유형(Majors) 데이터 삽입
  */
-async function insertDepartments(departments) {
-  console.log(`🎓 ${departments.length}개 학과 데이터 삽입 중...`);
-  
-  // 배치로 삽입 (50개씩)
+async function insertMajors(majors) {
+  console.log(`🎓 ${majors.length}개 학과 유형 데이터 삽입 중...`);
+
   const batchSize = 50;
   let insertedCount = 0;
-  
-  for (let i = 0; i < departments.length; i += batchSize) {
-    const batch = departments.slice(i, i + batchSize);
-    
+
+  for (let i = 0; i < majors.length; i += batchSize) {
+    const batch = majors.slice(i, i + batchSize);
+
     const { data, error } = await supabase
-      .from('departments')
-      .upsert(batch, { onConflict: 'id' })
+      .from("majors")
+      .upsert(batch, { onConflict: "name" })
       .select();
-    
+
     if (error) {
-      console.error(`❌ 학과 삽입 오류 (배치 ${i / batchSize + 1}):`, error.message);
+      console.error(
+        `❌ 학과 유형 삽입 오류 (배치 ${i / batchSize + 1}):`,
+        error.message
+      );
     } else {
       insertedCount += data?.length || 0;
     }
   }
-  
-  console.log(`✅ ${insertedCount}개 학과 삽입 완료`);
+
+  console.log(`✅ ${insertedCount}개 학과 유형 삽입 완료`);
+  return insertedCount;
+}
+
+/**
+ * 학교-학과 연결 데이터 삽입
+ */
+async function insertSchoolDepartments(schoolDepts) {
+  console.log(`🔗 ${schoolDepts.length}개 학교-학과 연결 삽입 중...`);
+
+  // admin_code → school_id 매핑 생성
+  const { data: schools } = await supabase
+    .from("schools")
+    .select("id, admin_code");
+
+  const schoolIdMap = new Map();
+  schools?.forEach((s) => {
+    schoolIdMap.set(s.admin_code, s.id);
+  });
+
+  // major_name → major_id 매핑 생성
+  const { data: majors } = await supabase.from("majors").select("id, name");
+
+  const majorIdMap = new Map();
+  majors?.forEach((m) => {
+    majorIdMap.set(m.name, m.id);
+  });
+
+  // 데이터 변환
+  const sdData = schoolDepts
+    .map((sd) => {
+      const schoolId = schoolIdMap.get(sd.admin_code);
+      const majorId = majorIdMap.get(sd.major_name);
+
+      if (!schoolId || !majorId) return null;
+
+      return {
+        school_id: schoolId,
+        major_id: majorId,
+      };
+    })
+    .filter(Boolean);
+
+  const batchSize = 50;
+  let insertedCount = 0;
+
+  for (let i = 0; i < sdData.length; i += batchSize) {
+    const batch = sdData.slice(i, i + batchSize);
+
+    const { data, error } = await supabase
+      .from("school_departments")
+      .upsert(batch, { onConflict: "school_id,major_id" })
+      .select();
+
+    if (error) {
+      console.error(
+        `❌ 학교-학과 연결 삽입 오류 (배치 ${i / batchSize + 1}):`,
+        error.message
+      );
+    } else {
+      insertedCount += data?.length || 0;
+    }
+  }
+
+  console.log(`✅ ${insertedCount}개 학교-학과 연결 삽입 완료`);
   return insertedCount;
 }
 
@@ -252,77 +352,86 @@ async function insertDepartments(departments) {
  * 메인 실행 함수
  */
 async function main() {
-  console.log('🚀 마이스터고 데이터 시딩 시작\n');
-  
+  console.log("🚀 마이스터고 데이터 시딩 시작 (하이브리드 구조)\n");
+
   // 1. CSV 파일 읽기
-  console.log('📂 CSV 파일 읽는 중...');
+  console.log("📂 CSV 파일 읽는 중...");
   if (!fs.existsSync(CSV_PATH)) {
     console.error(`❌ CSV 파일을 찾을 수 없습니다: ${CSV_PATH}`);
     process.exit(1);
   }
-  
-  const csvContent = fs.readFileSync(CSV_PATH, 'utf-8');
+
+  const csvContent = fs.readFileSync(CSV_PATH, "utf-8");
   const allData = parseCSV(csvContent);
   console.log(`✅ 총 ${allData.length}개 행 로드됨`);
-  
+
   // 2. 마이스터고 필터링
   const meisterData = filterMeisterSchools(allData);
   console.log(`✅ 마이스터고 ${meisterData.length}개 행 필터링됨`);
-  
+
   if (meisterData.length === 0) {
-    console.error('❌ 마이스터고 데이터가 없습니다.');
+    console.error("❌ 마이스터고 데이터가 없습니다.");
     process.exit(1);
   }
-  
-  // 3. 학교/학과 데이터 추출
+
+  // 3. 데이터 추출
   const schools = extractSchools(meisterData);
-  const departments = extractDepartments(meisterData);
-  
+  const majors = extractMajors(meisterData);
+  const schoolDepts = extractSchoolDepartments(meisterData);
+
   console.log(`\n📊 추출 결과:`);
   console.log(`   - 학교: ${schools.length}개`);
-  console.log(`   - 학과: ${departments.length}개\n`);
-  
-  // 4. 기존 데이터 정리 (선택적)
+  console.log(`   - 학과 유형: ${majors.length}개`);
+  console.log(`   - 학교-학과 연결: ${schoolDepts.length}개\n`);
+
+  // 4. 기존 데이터 정리
   await cleanExistingData();
-  
-  // 5. 데이터 삽입
+
+  // 5. 데이터 삽입 (순서 중요!)
   const schoolCount = await insertSchools(schools);
-  const deptCount = await insertDepartments(departments);
-  
+  const majorCount = await insertMajors(majors);
+  const sdCount = await insertSchoolDepartments(schoolDepts);
+
   // 6. 결과 출력
-  console.log('\n🎉 시딩 완료!');
+  console.log("\n🎉 시딩 완료!");
   console.log(`   - 학교: ${schoolCount}개 삽입됨`);
-  console.log(`   - 학과: ${deptCount}개 삽입됨`);
-  
+  console.log(`   - 학과 유형: ${majorCount}개 삽입됨`);
+  console.log(`   - 학교-학과 연결: ${sdCount}개 삽입됨`);
+
   // 7. 샘플 데이터 확인
-  console.log('\n📋 샘플 데이터 확인:');
+  console.log("\n📋 샘플 데이터 확인:");
+
   const { data: sampleSchools } = await supabase
-    .from('schools')
-    .select('name, region, foundation_type')
-    .like('id', 'school_%')
+    .from("schools")
+    .select("id, name, admin_code, region")
+    .eq("school_type", "MEISTER")
     .limit(5);
-  
+
   if (sampleSchools?.length) {
-    console.log('   학교 샘플:');
-    sampleSchools.forEach(s => {
-      console.log(`   - ${s.name} (${s.region}, ${s.foundation_type})`);
+    console.log("   학교 샘플:");
+    sampleSchools.forEach((s) => {
+      console.log(`   - [id:${s.id}] ${s.name} (${s.region})`);
     });
   }
-  
-  const { data: sampleDepts } = await supabase
-    .from('departments')
-    .select('name, description')
-    .like('id', 'dept_%')
+
+  const { data: sampleSD } = await supabase
+    .from("school_departments")
+    .select(
+      `
+      id,
+      school:schools(name),
+      major:majors(name)
+    `
+    )
     .limit(5);
-  
-  if (sampleDepts?.length) {
-    console.log('   학과 샘플:');
-    sampleDepts.forEach(d => {
-      console.log(`   - ${d.name} (${d.description || '설명 없음'})`);
+
+  if (sampleSD?.length) {
+    console.log("   학교-학과 연결 샘플:");
+    sampleSD.forEach((sd) => {
+      console.log(`   - [id:${sd.id}] ${sd.school?.name} - ${sd.major?.name}`);
     });
   }
 }
 
 // 스크립트 실행
 main().catch(console.error);
-

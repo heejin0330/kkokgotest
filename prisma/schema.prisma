@@ -26,12 +26,12 @@ enum AdmissionType {
 }
 
 // ============================================
-// 모델 정의
+// 모델 정의 (하이브리드 구조)
 // ============================================
 
 /// 사용자 모델: 진로 매칭 서비스를 이용하는 사용자
 model User {
-  id        String    @id @default(cuid())
+  id        BigInt    @id @default(autoincrement())
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
@@ -43,159 +43,189 @@ model User {
 
 /// 학교 모델: 마이스터고 및 특성화고등학교 정보
 model School {
-  id        String   @id @default(cuid())
-  name      String   // 학교명
+  id             BigInt   @id @default(autoincrement())
+  name           String   // 학교명
+  /// 행정표준코드 (외부 시스템 연동용)
+  adminCode      String?  @unique @map("admin_code")
   /// 학교 유형 (MEISTER: 마이스터고, SPECIALIZED: 특성화고, GENERAL: 일반고)
-  schoolType String  @default("SPECIALIZED") @map("school_type")
+  schoolType     String   @default("SPECIALIZED") @map("school_type")
   /// 설립유형 (공립, 사립 등)
-  foundationType String @map("foundation_type")
+  foundationType String   @map("foundation_type")
   /// 마이스터고 지정차수 (예: 1차, 2차 등)
-  designationTh  String  @map("designation_th")
-  address   String?  // 주소
-  region    String?  // 지역 (시도명)
-  phone     String?  // 전화번호
-  homepage  String?  // 홈페이지 주소
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  designationTh  String   @map("designation_th")
+  address        String?  // 주소
+  region         String?  // 지역 (시도명)
+  phone          String?  // 전화번호
+  homepage       String?  // 홈페이지 주소
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  /// 학교에 속한 학과 목록
-  departments Department[]
+  /// 학교에서 개설한 학과 목록
+  schoolDepartments SchoolDepartment[]
 
   @@index([name])
   @@index([schoolType])
   @@index([foundationType])
   @@index([designationTh])
+  @@index([adminCode])
+  @@index([region])
   @@map("schools")
 }
 
-/// 학과 모델: 학교에 속한 학과 정보
-model Department {
-  id          String   @id @default(cuid())
-  name        String   // 학과명
+/// 학과 유형 모델: 학과의 공통 정보 (전기과, 기계과 등)
+model Major {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @unique // 학과명
+  ncsCode     String?  @map("ncs_code") // NCS 분류 코드
+  category    String?  // 학과 분류 (전기전자, 기계 등)
   description String?  // 학과 설명
-  /// 소속 학교 ID
-  schoolId    String   @map("school_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  /// 소속 학교
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  /// 학과의 입시전형 목록
-  admissionRules AdmissionRule[]
-  /// 학과의 목표기업 목록
-  targetCompanies TargetCompany[]
-  /// 학과별 특성 가중치 목록
-  departmentTraits DepartmentTrait[]
+  /// 이 학과 유형의 적성 가중치 목록
+  majorTraits MajorTrait[]
+  /// 이 학과 유형을 개설한 학교-학과 연결
+  schoolDepartments SchoolDepartment[]
 
   @@index([name])
-  @@index([schoolId])
-  @@map("departments")
+  @@index([category])
+  @@map("majors")
 }
 
-/// 입시전형 모델: 학과별 입시 전형 정보 및 반영 비율
+/// 학교-학과 연결 모델: 특정 학교에서 개설한 특정 학과
+model SchoolDepartment {
+  id         BigInt   @id @default(autoincrement())
+  /// 소속 학교 ID
+  schoolId   BigInt   @map("school_id")
+  /// 학과 유형 ID
+  majorId    BigInt   @map("major_id")
+  /// 학교별 커스텀 학과명 (예: 스마트전기과)
+  customName String?  @map("custom_name")
+  /// 모집 정원
+  quota      Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  /// 소속 학교
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  /// 학과 유형
+  major Major @relation(fields: [majorId], references: [id], onDelete: Cascade)
+  /// 이 학교-학과의 입시전형 목록
+  admissionRules AdmissionRule[]
+  /// 이 학교-학과의 목표기업 목록
+  targetCompanies TargetCompany[]
+
+  @@unique([schoolId, majorId])
+  @@index([schoolId])
+  @@index([majorId])
+  @@map("school_departments")
+}
+
+/// 입시전형 모델: 학교-학과별 입시 전형 정보 및 반영 비율
 model AdmissionRule {
-  id            String        @id @default(cuid())
+  id                 BigInt        @id @default(autoincrement())
   /// 전형 구분 (일반전형/특별전형)
-  admissionType AdmissionType @map("admission_type")
+  admissionType      AdmissionType @map("admission_type")
   /// 연도
-  year          Int
+  year               Int
   /// 내신 반영 비율 (%)
-  gpaRatio      Float?        @map("gpa_ratio")
+  gpaRatio           Float?        @map("gpa_ratio")
   /// 면접 반영 비율 (%)
-  interviewRatio Float?       @map("interview_ratio")
+  interviewRatio     Float?        @map("interview_ratio")
   /// 필기 반영 비율 (%)
-  writtenRatio  Float?        @map("written_ratio")
+  writtenRatio       Float?        @map("written_ratio")
   /// 적성검사 반영 비율 (%)
-  aptitudeRatio Float?        @map("aptitude_ratio")
+  aptitudeRatio      Float?        @map("aptitude_ratio")
   /// 출석 반영 비율 (%)
-  attendanceRatio Float?      @map("attendance_ratio")
+  attendanceRatio    Float?        @map("attendance_ratio")
   /// 전형 설명
-  description  String?
-  /// 소속 학과 ID
-  departmentId  String        @map("department_id")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  description        String?
+  /// 소속 학교-학과 ID
+  schoolDepartmentId BigInt        @map("school_department_id")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
 
-  /// 소속 학과
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  /// 소속 학교-학과
+  schoolDepartment SchoolDepartment @relation(fields: [schoolDepartmentId], references: [id], onDelete: Cascade)
 
-  @@index([departmentId])
+  @@index([schoolDepartmentId])
   @@index([admissionType])
   @@index([year])
   @@map("admission_rules")
 }
 
-/// 목표기업 모델: 학과별 주요 취업처 정보
+/// 목표기업 모델: 학교-학과별 주요 취업처 정보
 model TargetCompany {
-  id            String   @id @default(cuid())
+  id                 BigInt   @id @default(autoincrement())
   /// 기업명
-  name          String
+  name               String
   /// 산업/기업유형 (예: 공기업, 대기업 등)
-  industryType  String
-  /// 소속 학과 ID
-  departmentId  String   @map("department_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  industryType       String   @map("industry_type")
+  /// 소속 학교-학과 ID
+  schoolDepartmentId BigInt   @map("school_department_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  /// 소속 학과
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  /// 소속 학교-학과
+  schoolDepartment SchoolDepartment @relation(fields: [schoolDepartmentId], references: [id], onDelete: Cascade)
 
-  @@index([departmentId])
+  @@index([schoolDepartmentId])
   @@index([name])
   @@map("target_companies")
 }
 
 /// 특성 모델: 적성 또는 흥미 특성을 나타내는 태그
 model Trait {
-  id        String   @id @default(cuid())
-  name      String   // 특성명
+  id        BigInt    @id @default(autoincrement())
+  name      String    // 특성명
   /// 특성 타입 (적성/흥미)
   type      TraitType
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-  /// 이 특성을 가진 학과별 가중치 목록
-  departmentTraits DepartmentTrait[]
+  /// 이 특성을 가진 학과 유형별 가중치 목록
+  majorTraits MajorTrait[]
   /// 이 특성을 가진 사용자 점수 목록
   userTraits UserTrait[]
 
   @@unique([name, type])
   @@index([type])
+  @@index([name])
   @@map("traits")
 }
 
-/// 학과별 특성 가중치 모델: 특정 학과가 어떤 특성을 중요하게 여기는지 저장
-model DepartmentTrait {
-  id           String  @id @default(cuid())
+/// 학과 유형별 적성 가중치 모델: 특정 학과 유형이 어떤 특성을 중요하게 여기는지
+model MajorTrait {
+  id        BigInt   @id @default(autoincrement())
   /// 가중치 (0.0 ~ 1.0 또는 0 ~ 100 등)
-  weight       Float
-  /// 소속 학과 ID
-  departmentId String  @map("department_id")
+  weight    Float
+  /// 학과 유형 ID
+  majorId   BigInt   @map("major_id")
   /// 특성 ID
-  traitId      String  @map("trait_id")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  traitId   BigInt   @map("trait_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  /// 소속 학과
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  /// 학과 유형
+  major Major @relation(fields: [majorId], references: [id], onDelete: Cascade)
   /// 특성
   trait Trait @relation(fields: [traitId], references: [id], onDelete: Cascade)
 
-  @@unique([departmentId, traitId])
-  @@index([departmentId])
+  @@unique([majorId, traitId])
+  @@index([majorId])
   @@index([traitId])
-  @@map("department_traits")
+  @@map("major_traits")
 }
 
 /// 사용자 특성 모델: 사용자의 테스트 결과 점수 저장
 model UserTrait {
-  id        String   @id @default(cuid())
+  id        BigInt   @id @default(autoincrement())
   /// 점수 (0.0 ~ 1.0 또는 0 ~ 100 등)
   score     Float
   /// 사용자 ID
-  userId    String   @map("user_id")
+  userId    BigInt   @map("user_id")
   /// 특성 ID
-  traitId   String   @map("trait_id")
+  traitId   BigInt   @map("trait_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -210,3 +240,21 @@ model UserTrait {
   @@map("user_traits")
 }
 
+/// 사전예약 모델: 서비스 출시 전 사전 예약 사용자 정보
+model PreOrder {
+  id               BigInt   @id @default(autoincrement())
+  /// 휴대폰 번호 (고유)
+  phone            String   @unique
+  /// 관심 전공/학과
+  major            String?
+  /// 결과 유형
+  resultType       String?  @map("result_type")
+  /// 마케팅 동의 여부
+  marketingConsent Boolean  @default(false) @map("marketing_consent")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @map("updated_at")
+
+  @@index([phone])
+  @@index([createdAt])
+  @@map("pre_orders")
+}

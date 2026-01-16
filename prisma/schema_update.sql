@@ -26,3 +26,4 @@ CREATE INDEX IF NOT EXISTS "target_companies_department_id_idx"
 CREATE INDEX IF NOT EXISTS "target_companies_name_idx"
   ON "target_companies" ("name");
 
+
