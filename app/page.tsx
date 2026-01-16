@@ -1306,6 +1306,14 @@ function ComparisonSection({
   );
 }
 
+// 랜덤 학과 타입 정의
+interface RandomMajor {
+  id: number;
+  name: string;
+  emoji: string;
+  displayName: string;
+}
+
 function ResultView({
   resultType,
   scores,
@@ -1335,43 +1343,101 @@ function ResultView({
     Record<string, SchoolInfo[]>
   >({});
   const [userRegion, setUserRegion] = useState<string>("");
+  
+  // 랜덤 학과 데이터 (DB에서 가져옴)
+  const [randomMajors, setRandomMajors] = useState<RandomMajor[]>([]);
+  const [isMajorsLoading, setIsMajorsLoading] = useState(true);
+  const [isSchoolsLoading, setIsSchoolsLoading] = useState(true);
 
-  // IP 기반 지역 파악 및 학교 정보 로딩
+  // 랜덤 학과 및 학교 정보 로딩
   useEffect(() => {
-    const loadSchoolInfo = async () => {
+    const loadMajorsAndSchools = async () => {
       try {
-        // 1. IP 기반 지역 파악 (지역 정보는 참고용으로만 사용)
-        const regionRes = await fetch("/api/schools", { method: "POST" });
-        const regionData = await regionRes.json();
-        const region = regionData.region || "Seoul";
-        setUserRegion(region);
-
-        // 2. 학과별 학교 검색 (취업률/진학률 기준 정렬된 결과)
-        const majors = data?.majors || [];
-        const schoolRes = await fetch(
-          `/api/schools?majors=${encodeURIComponent(
-            majors.join(",")
-          )}&region=${encodeURIComponent(region)}`
-        );
-        const schoolData = await schoolRes.json();
-
-        if (schoolData.success) {
-          setSchoolInfo(schoolData.data);
+        setIsMajorsLoading(true);
+        setIsSchoolsLoading(true);
+        
+        // 1. 랜덤 학과 가져오기 (홀랜드 유형에 맞는 학과)
+        const majorsRes = await fetch(`/api/random-majors?type=${resultType}&count=5`);
+        const majorsData = await majorsRes.json();
+        
+        if (majorsData.success && majorsData.majors.length > 0) {
+          setRandomMajors(majorsData.majors);
+          setIsMajorsLoading(false); // 학과 로딩 완료
+          
+          // 2. IP 기반 지역 파악
+          const regionRes = await fetch("/api/schools", { method: "POST" });
+          const regionData = await regionRes.json();
+          const region = regionData.region || "Seoul";
+          setUserRegion(region);
+          
+          // 3. 랜덤 학과들로 학교 검색
+          const majorNames = majorsData.majors.map((m: RandomMajor) => m.displayName);
+          const schoolRes = await fetch(
+            `/api/schools?majors=${encodeURIComponent(
+              majorNames.join(",")
+            )}&region=${encodeURIComponent(region)}`
+          );
+          const schoolData = await schoolRes.json();
+          
+          if (schoolData.success) {
+            setSchoolInfo(schoolData.data);
+          }
+          setIsSchoolsLoading(false); // 학교 로딩 완료
+        } else {
+          // 폴백: 하드코딩된 학과 사용
+          console.log("Using fallback majors from RESULT_DATA");
+          const fallbackMajors = data?.majors || [];
+          setRandomMajors(fallbackMajors.map((m, i) => ({
+            id: i,
+            name: m.replace(/^[^\s]+\s/, ""), // 이모지 제거
+            emoji: m.split(" ")[0] || "📚",
+            displayName: m
+          })));
+          setIsMajorsLoading(false);
+          
+          // 학교 정보도 로드
+          const regionRes = await fetch("/api/schools", { method: "POST" });
+          const regionData = await regionRes.json();
+          const region = regionData.region || "Seoul";
+          setUserRegion(region);
+          
+          const schoolRes = await fetch(
+            `/api/schools?majors=${encodeURIComponent(
+              fallbackMajors.join(",")
+            )}&region=${encodeURIComponent(region)}`
+          );
+          const schoolData = await schoolRes.json();
+          
+          if (schoolData.success) {
+            setSchoolInfo(schoolData.data);
+          }
+          setIsSchoolsLoading(false);
         }
       } catch (error) {
-        console.error("Failed to load school info:", error);
+        console.error("Failed to load majors and schools:", error);
+        // 에러 시 폴백
+        const fallbackMajors = data?.majors || [];
+        setRandomMajors(fallbackMajors.map((m, i) => ({
+          id: i,
+          name: m.replace(/^[^\s]+\s/, ""),
+          emoji: m.split(" ")[0] || "📚",
+          displayName: m
+        })));
+        setIsMajorsLoading(false);
+        setIsSchoolsLoading(false);
       }
     };
 
-    if (data) {
-      loadSchoolInfo();
+    if (resultType) {
+      loadMajorsAndSchools();
     }
-  }, [data]);
+  }, [resultType, data]);
 
   // 카드 슬라이더용 데이터 생성 (각 학과별 상위 학교 선택)
   const schoolCards: SchoolCardData[] = useMemo(() => {
-    if (!data) return [];
-    return data.majors.map((major) => {
+    if (randomMajors.length === 0) return [];
+    return randomMajors.map((majorData) => {
+      const major = majorData.displayName;
       const schools = schoolInfo[major] || [];
       // 각 학과별 첫 번째 학교(가장 높은 점수) 선택
       const topSchool = schools[0];
@@ -1397,19 +1463,57 @@ function ResultView({
         schoolType: topSchool.schoolType ?? null,
       };
     });
-  }, [data, schoolInfo]);
+  }, [randomMajors, schoolInfo]);
 
   if (!data) return null;
+
+  // 스팸성 번호 패턴 검사
+  const isSpamPhoneNumber = (phoneNumber: string): boolean => {
+    // 앞 3자리(010 등) 제외하고 뒷번호만 검사
+    const suffix = phoneNumber.slice(3);
+    
+    // 1. 모든 숫자가 같은 경우 (11111111, 22222222 등)
+    if (/^(\d)\1+$/.test(suffix)) return true;
+    
+    // 2. 4자리 패턴 반복 (12341234 등)
+    if (suffix.length === 8) {
+      const first = suffix.slice(0, 4);
+      const second = suffix.slice(4, 8);
+      if (first === second) return true;
+    }
+    
+    // 3. 연속 숫자 (12345678, 87654321 등)
+    const sequential = ["12345678", "23456789", "34567890", "01234567"];
+    const reverseSeq = ["87654321", "98765432", "09876543", "76543210"];
+    if (sequential.includes(suffix) || reverseSeq.includes(suffix)) return true;
+    
+    // 4. 0000으로 끝나는 경우
+    if (suffix.endsWith("0000")) return true;
+    
+    // 5. 1234로 시작하고 1234로 끝나는 경우
+    if (suffix.startsWith("1234") && suffix.endsWith("1234")) return true;
+    
+    return false;
+  };
 
   const handleUnlock = async () => {
     if (!privacyConsent) {
       alert("개인정보 활용동의를 해주세요.");
       return;
     }
-    const phoneRegex = /^01[0-9]\d{7,8}$/;
+    
     const cleanPhone = phone.replace(/-/g, "");
+    
+    // 기본 형식 검사 (010, 011, 016, 017, 018, 019만 허용)
+    const phoneRegex = /^01[016789]\d{7,8}$/;
     if (!phone || !phoneRegex.test(cleanPhone)) {
       alert("올바른 휴대폰 번호 형식이 아닙니다.");
+      return;
+    }
+    
+    // 스팸 번호 검사
+    if (isSpamPhoneNumber(cleanPhone)) {
+      alert("유효하지 않은 전화번호입니다.\n실제 사용 중인 번호를 입력해주세요.");
       return;
     }
 
@@ -1686,40 +1790,59 @@ function ResultView({
           )}
         </div>
         <div className="flex flex-col gap-2">
-          {isUnlocked ? (
-            data.majors.map((major: string, index: number) => (
-              <motion.div
+          {isMajorsLoading ? (
+            // 로딩 스켈레톤
+            Array.from({ length: 5 }).map((_, index) => (
+              <div
                 key={index}
+                className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl animate-pulse"
+              >
+                <div className="h-4 bg-white/20 rounded w-32"></div>
+                <div className="h-3 bg-white/10 rounded w-24"></div>
+              </div>
+            ))
+          ) : isUnlocked ? (
+            randomMajors.map((majorData, index: number) => (
+              <motion.div
+                key={majorData.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
                 className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl"
               >
-                <span className="text-lime-400 font-bold text-sm">{major}</span>
-                {schoolInfo[major] && schoolInfo[major][0] && (
+                <span className="text-lime-400 font-bold text-sm">{majorData.displayName}</span>
+                {isSchoolsLoading ? (
+                  <span className="text-gray-400 text-xs animate-pulse">로딩 중...</span>
+                ) : schoolInfo[majorData.displayName] && schoolInfo[majorData.displayName][0] ? (
                   <span className="text-gray-300 text-xs">
-                    {schoolInfo[major][0].schoolName}
+                    {schoolInfo[majorData.displayName][0].schoolName}
                   </span>
+                ) : (
+                  <span className="text-gray-500 text-xs">정보 없음</span>
                 )}
               </motion.div>
             ))
           ) : (
             <>
-              {selectedMajors.map((major: string, index: number) => (
+              {randomMajors.slice(0, 3).map((majorData, index: number) => (
                 <motion.div
-                  key={index}
+                  key={majorData.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.15 }}
                   className="flex items-center justify-between px-4 py-3 bg-white/10 rounded-2xl"
                 >
                   <span className="text-lime-400 font-bold text-sm">
-                    {major}
+                    {majorData.displayName}
                   </span>
-                  {schoolInfo[major] && schoolInfo[major][0] && (
+                  {isSchoolsLoading ? (
+                    <span className="text-gray-400 text-xs animate-pulse">로딩 중...</span>
+                  ) : schoolInfo[majorData.displayName] && schoolInfo[majorData.displayName][0] ? (
                     <span className="text-gray-300 text-xs">
-                      {schoolInfo[major][0].schoolName}
+                      {schoolInfo[majorData.displayName][0].schoolName}
                     </span>
+                  ) : (
+                    <span className="text-gray-500 text-xs">정보 없음</span>
                   )}
                 </motion.div>
               ))}
@@ -1803,10 +1926,10 @@ function ResultView({
             className="absolute inset-0 flex items-center justify-center"
           >
             <div className="w-full bg-black/70 backdrop-blur-sm rounded-3xl p-4 sm:p-6 mx-2">
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-lime-400" />
-                <h3 className="text-white font-black text-lg sm:text-xl">
-                  무료 리포트 잠금 해제
+              <div className="flex items-center justify-center gap-2 mb-6 sm:mb-8">
+                <Lock className="w-6 h-6 sm:w-7 sm:h-7 text-lime-400" />
+                <h3 className="text-white font-black text-xl sm:text-2xl">
+                  추천학과 더보기
                 </h3>
               </div>
               <div className="flex gap-2 mb-3">
