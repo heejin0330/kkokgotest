@@ -27,3 +27,4 @@ CREATE INDEX IF NOT EXISTS "target_companies_name_idx"
   ON "target_companies" ("name");
 
 
+
