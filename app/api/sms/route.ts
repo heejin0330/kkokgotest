@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     // ▼▼▼ [핵심 수정] 무조건 이 짧은 주소로 만듭니다 ▼▼▼
     // 대표님의 실제 배포 도메인을 여기에 적어주세요. (마지막 / 빼고)
-    const BASE_URL = "https://kkokgo-landing.vercel.app";
+    const BASE_URL = "https://kkokgotest.vercel.app";
 
     // 전화번호별 개인화된 링크 생성 (타입 꼬리표 붙이기)
     const shortLink = `${BASE_URL}/?type=${resultType}`;

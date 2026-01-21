@@ -21,7 +21,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const hollandData = type && HOLLAND_META[type] ? HOLLAND_META[type] : null;
 
   // 기본 URL
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://kkokgo-landing.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://kkokgotest.vercel.app";
   
   // 동적 OG 이미지 URL
   const ogImageUrl = type 
