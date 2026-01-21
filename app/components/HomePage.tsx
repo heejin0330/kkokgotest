@@ -1,12 +1,5 @@
 "use client";
 
-// 카카오 SDK 타입 정의
-declare global {
-  interface Window {
-    Kakao: any;
-  }
-}
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   motion,
@@ -19,7 +12,6 @@ import {
   Circle,
   X,
   Sparkles,
-  TrendingUp,
   Phone,
   Share2,
   CheckCircle,
@@ -27,16 +19,12 @@ import {
   Briefcase,
   GraduationCap,
   Lock,
-  Copy,
-  Instagram,
-  MessageCircle,
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
   MapPin,
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import html2canvas from "html2canvas";
 import {
   questionBank,
   type HollandType,
@@ -1578,14 +1566,20 @@ function ResultView({
   };
 
   const handleShare = async () => {
+    // 공유 모달 표시
+    setShowShareModal(true);
+  };
+
+  // 네이티브 공유 (모달 내에서 사용)
+  const handleNativeShare = async () => {
     const shareUrl = getShareUrl();
     const shareData = {
-      title: `나는 ${data.title}!`,
-      text: `${data.desc} ${data.title} ${data.emoji}\n나의 숨겨진 재능을 찾아보세요!`,
+      title: `나는 ${data.title}! ${data.emoji}`,
+      text: `${data.desc}\n나도 테스트해보기!`,
       url: shareUrl,
     };
 
-    // 모바일이거나 navigator.share가 지원되는 경우
+    // navigator.share가 지원되는 경우
     if (navigator.share) {
       try {
         await navigator.share(shareData);
@@ -1594,6 +1588,7 @@ function ResultView({
           test_mode: isPremiumMode ? "premium" : "basic",
           share_method: "native_share",
         });
+        setShowShareModal(false);
       } catch (err) {
         // 사용자가 공유를 취소한 경우는 무시
         if ((err as Error).name !== "AbortError") {
@@ -1601,15 +1596,30 @@ function ResultView({
         }
       }
     } else {
-      // PC 또는 navigator.share가 지원되지 않는 경우 공유 모달 표시
-      setShowShareModal(true);
+      // PC에서 navigator.share가 지원되지 않는 경우 링크 복사로 폴백
+      await handleCopyLink();
     }
   };
 
   const handleCopyLink = async () => {
     const shareUrl = getShareUrl();
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      // 먼저 Clipboard API 시도
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // 폴백: 임시 textarea 사용
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      
       trackEvent("share_copy_link", {
         result_type: resultType,
         test_mode: isPremiumMode ? "premium" : "basic",
@@ -1620,116 +1630,62 @@ function ResultView({
       setShowShareModal(false);
     } catch (err) {
       console.error("링크 복사 실패:", err);
-      alert("링크 복사에 실패했습니다.");
-    }
-  };
-
-  const handleKakaoShare = () => {
-    // 카카오 SDK가 로드되었는지 확인
-    if (typeof window === "undefined" || !window.Kakao) {
-      alert(
-        "카카오 SDK가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요."
-      );
-      return;
-    }
-
-    // 카카오 SDK 초기화 확인 및 초기화
-    if (!window.Kakao.isInitialized()) {
-      const kakaoApiKey = process.env.NEXT_PUBLIC_KAKAO_API_KEY;
-      if (!kakaoApiKey) {
-        alert("카카오 API 키가 설정되지 않았습니다.");
-        return;
+      // 폴백 시도
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        
+        if (successful) {
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+          setShowShareModal(false);
+        } else {
+          alert(`링크를 수동으로 복사해주세요:\n${shareUrl}`);
+          setShowShareModal(false);
+        }
+      } catch (fallbackErr) {
+        alert(`링크를 수동으로 복사해주세요:\n${shareUrl}`);
+        setShowShareModal(false);
       }
-      window.Kakao.init(kakaoApiKey);
-    }
-
-    const shareUrl = getShareUrl();
-    const currentUrl =
-      typeof window !== "undefined" ? window.location.href : shareUrl;
-    const imageUrl = `${window.location.origin}/og-image-2.png`;
-
-    try {
-      // 카카오톡 피드 메시지 전송
-      window.Kakao.Share.sendDefault({
-        objectType: "feed",
-        content: {
-          title: "꼭고 - 특성화고/마이스터고 매칭 플랫폼",
-          description: "AI 진로 테스트로 나에게 딱 맞는 고등학교를 찾아보세요!",
-          imageUrl: imageUrl,
-          link: {
-            mobileWebUrl: currentUrl,
-            webUrl: currentUrl,
-          },
-        },
-        buttons: [
-          {
-            title: "테스트 시작하기",
-            link: {
-              mobileWebUrl: currentUrl,
-              webUrl: currentUrl,
-            },
-          },
-        ],
-      });
-      trackEvent("share_kakao", {
-        result_type: resultType,
-        test_mode: isPremiumMode ? "premium" : "basic",
-        share_method: "kakao",
-      });
-    } catch (err) {
-      console.error("카카오톡 공유 실패:", err);
-      alert("카카오톡 공유에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
+
 
   const handleSaveImage = async () => {
     try {
-      // 결과 영역을 찾아서 캡처
-      const resultElement = document.querySelector(
-        "[data-result-content]"
-      ) as HTMLElement;
-      if (!resultElement) {
-        alert("결과 영역을 찾을 수 없습니다.");
-        return;
+      // 동적 OG 이미지 URL 생성
+      const imageUrl = `${window.location.origin}/api/og?type=${resultType}`;
+      
+      // 새 탭에서 이미지 열기 (사용자가 직접 저장)
+      const newWindow = window.open(imageUrl, '_blank');
+      
+      if (newWindow) {
+        trackEvent("share_save_image", {
+          result_type: resultType,
+          test_mode: isPremiumMode ? "premium" : "basic",
+          share_method: "save_image",
+        });
+        
+        // 저장 안내 토스트
+        setShowShareModal(false);
+        alert("💡 이미지가 새 탭에서 열렸어요!\n\n이미지를 꾹 누르거나 우클릭해서 저장하세요.");
+      } else {
+        // 팝업 차단된 경우
+        alert("팝업이 차단되었습니다.\n브라우저 설정에서 팝업을 허용해주세요.");
       }
-
-      const canvas = await html2canvas(resultElement, {
-        backgroundColor: "#020617", // slate-950 배경색
-        scale: 2, // 고해상도
-        useCORS: true,
-      });
-
-      // 이미지 다운로드
-      const link = document.createElement("a");
-      link.download = `kkokgo_${data.title}_${resultType}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-
-      trackEvent("share_save_image", {
-        result_type: resultType,
-        test_mode: isPremiumMode ? "premium" : "basic",
-        share_method: "save_image",
-      });
-
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-      setShowShareModal(false);
     } catch (err) {
       console.error("이미지 저장 실패:", err);
-      alert("이미지 저장에 실패했습니다.");
+      alert("이미지 저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
-  const handleInstagramInfo = () => {
-    trackEvent("share_instagram_info", {
-      result_type: resultType,
-      test_mode: isPremiumMode ? "premium" : "basic",
-      share_method: "instagram",
-    });
-    alert(
-      "💡 인스타그램 공유 방법\n\n1. 위의 '이미지 저장' 버튼을 눌러 결과 이미지를 저장하세요.\n2. 인스타그램 앱을 열고 스토리 또는 게시물을 만드세요.\n3. 저장한 이미지를 선택하여 업로드하세요!\n\n✨ 멋진 결과를 친구들과 공유해보세요!"
-    );
-  };
 
   const handlePremiumClick = () => {
     // 무료 리포트 오픈 상태에서는 바로 진행
@@ -2214,56 +2170,42 @@ function ResultView({
                 </button>
               </div>
 
-              {/* 공유 버튼 그리드 */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* 링크 복사 */}
-                <button
-                  onClick={handleCopyLink}
-                  className="flex flex-col items-center justify-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-lime-400/20 flex items-center justify-center group-hover:bg-lime-400/30 transition-colors">
-                    <Copy className="w-6 h-6 text-lime-400" />
-                  </div>
-                  <span className="text-white font-bold text-sm">
-                    링크 복사
-                  </span>
-                </button>
-
-                {/* 카카오톡 */}
-                <button
-                  onClick={handleKakaoShare}
-                  className="flex flex-col items-center justify-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-yellow-400/20 flex items-center justify-center group-hover:bg-yellow-400/30 transition-colors">
-                    <MessageCircle className="w-6 h-6 text-yellow-400" />
-                  </div>
-                  <span className="text-white font-bold text-sm">카카오톡</span>
-                </button>
-
+              {/* 공유 버튼 - 2개로 단순화 */}
+              <div className="flex flex-col gap-4">
                 {/* 이미지 저장 */}
                 <button
                   onClick={handleSaveImage}
-                  className="flex flex-col items-center justify-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 group"
+                  className="flex items-center justify-center gap-3 p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-[1.02] group"
                 >
                   <div className="w-12 h-12 rounded-full bg-purple-400/20 flex items-center justify-center group-hover:bg-purple-400/30 transition-colors">
                     <ImageIcon className="w-6 h-6 text-purple-400" />
                   </div>
-                  <span className="text-white font-bold text-sm">
-                    이미지 저장
-                  </span>
+                  <div className="flex-1 text-left">
+                    <span className="text-white font-bold text-base block">
+                      이미지 저장
+                    </span>
+                    <span className="text-gray-400 text-xs">
+                      결과 이미지를 저장해서 SNS에 공유하세요
+                    </span>
+                  </div>
                 </button>
 
-                {/* 인스타그램 */}
+                {/* 공유하기 (네이티브) */}
                 <button
-                  onClick={handleInstagramInfo}
-                  className="flex flex-col items-center justify-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 group"
+                  onClick={handleNativeShare}
+                  className="flex items-center justify-center gap-3 p-5 bg-gradient-to-r from-lime-400/20 to-emerald-400/20 hover:from-lime-400/30 hover:to-emerald-400/30 rounded-2xl border border-lime-400/30 transition-all hover:scale-[1.02] group"
                 >
-                  <div className="w-12 h-12 rounded-full bg-pink-400/20 flex items-center justify-center group-hover:bg-pink-400/30 transition-colors">
-                    <Instagram className="w-6 h-6 text-pink-400" />
+                  <div className="w-12 h-12 rounded-full bg-lime-400/20 flex items-center justify-center group-hover:bg-lime-400/30 transition-colors">
+                    <Share2 className="w-6 h-6 text-lime-400" />
                   </div>
-                  <span className="text-white font-bold text-sm">
-                    인스타그램
-                  </span>
+                  <div className="flex-1 text-left">
+                    <span className="text-white font-bold text-base block">
+                      공유하기
+                    </span>
+                    <span className="text-gray-400 text-xs">
+                      카카오톡, 메시지, 메일 등으로 공유
+                    </span>
+                  </div>
                 </button>
               </div>
             </motion.div>
@@ -2392,6 +2334,25 @@ export default function HomePage() {
       const params = new URLSearchParams(window.location.search);
       const typeParam = params.get("type");
       const sharedParam = params.get("shared"); // 공유 링크 구분용
+      const modeParam = params.get("mode"); // 테스트 모드 직접 진입용
+      
+      // 60문항 정밀 진단 직접 진입 (?mode=premium)
+      if (modeParam === "premium") {
+        setIsPremiumMode(true);
+        initTest("premium");
+        setStage("test");
+        
+        // URL에서 mode 파라미터 제거 (새로고침 시 중복 방지)
+        const newUrl = window.location.pathname;
+        window.history.replaceState(null, "", newUrl);
+        
+        trackPageView("page_test", {
+          test_mode: "premium",
+          question_count: 60,
+          direct_entry: true,
+        });
+        return;
+      }
       
       if (isValidHollandType(typeParam)) {
         // 본인이 테스트를 완료한 세션인지 확인
@@ -2415,7 +2376,7 @@ export default function HomePage() {
         });
       }
     }
-  }, []);
+  }, [initTest]);
 
   useEffect(() => {
     if (isTestComplete && stage === "test") {

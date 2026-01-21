@@ -83,9 +83,15 @@ const DEFAULT_CONFIG = {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type')?.toUpperCase() || '';
+  const format = searchParams.get('format') || 'og'; // 'og' (1200x630) or 'story' (1080x1920)
   
   const config = HOLLAND_TYPES[type] || DEFAULT_CONFIG;
   const isResult = !!HOLLAND_TYPES[type];
+  const isStory = format === 'story';
+  
+  // 이미지 크기 설정
+  const width = isStory ? 1080 : 1200;
+  const height = isStory ? 1920 : 630;
 
   return new ImageResponse(
     (
@@ -127,22 +133,22 @@ export async function GET(request: NextRequest) {
           }}
         />
 
-        {/* 메인 콘텐츠 - 컴팩트하게 조정 */}
+        {/* 메인 콘텐츠 - 가로/세로형에 따라 동적 조정 */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '5px',
+            gap: isStory ? '20px' : '5px',
             zIndex: 1,
-            marginTop: '-70px',
+            marginTop: isStory ? '0px' : '-70px',
           }}
         >
           {/* 이모지 */}
           <div
             style={{
-              fontSize: isResult ? '80px' : '60px',
-              marginBottom: '0px',
+              fontSize: isStory ? (isResult ? '150px' : '120px') : (isResult ? '80px' : '60px'),
+              marginBottom: isStory ? '20px' : '0px',
             }}
           >
             {config.emoji}
@@ -155,12 +161,12 @@ export async function GET(request: NextRequest) {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '5px',
+                gap: isStory ? '20px' : '5px',
               }}
             >
               <div
                 style={{
-                  fontSize: '24px',
+                  fontSize: isStory ? '36px' : '24px',
                   color: 'rgba(255, 255, 255, 0.8)',
                   fontWeight: 500,
                 }}
@@ -169,21 +175,24 @@ export async function GET(request: NextRequest) {
               </div>
               <div
                 style={{
-                  fontSize: '56px',
+                  fontSize: isStory ? '72px' : '56px',
                   fontWeight: 'bold',
                   color: config.textColor,
                   textShadow: '2px 2px 10px rgba(0, 0, 0, 0.3)',
+                  textAlign: 'center',
+                  maxWidth: isStory ? '900px' : '700px',
                 }}
               >
                 {config.title}
               </div>
               <div
                 style={{
-                  fontSize: '22px',
+                  fontSize: isStory ? '32px' : '22px',
                   color: 'rgba(255, 255, 255, 0.9)',
-                  maxWidth: '700px',
+                  maxWidth: isStory ? '850px' : '700px',
                   textAlign: 'center',
-                  lineHeight: 1.3,
+                  lineHeight: 1.4,
+                  marginTop: isStory ? '10px' : '0px',
                 }}
               >
                 {config.description}
@@ -195,23 +204,26 @@ export async function GET(request: NextRequest) {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '15px',
+                gap: isStory ? '30px' : '15px',
               }}
             >
               <div
                 style={{
-                  fontSize: '56px',
+                  fontSize: isStory ? '72px' : '56px',
                   fontWeight: 'bold',
                   color: config.textColor,
                   textShadow: '2px 2px 10px rgba(0, 0, 0, 0.3)',
+                  textAlign: 'center',
                 }}
               >
                 {config.title}
               </div>
               <div
                 style={{
-                  fontSize: '28px',
+                  fontSize: isStory ? '36px' : '28px',
                   color: 'rgba(255, 255, 255, 0.9)',
+                  textAlign: 'center',
+                  maxWidth: isStory ? '850px' : '700px',
                 }}
               >
                 {config.description}
@@ -220,20 +232,22 @@ export async function GET(request: NextRequest) {
           )}
         </div>
 
-        {/* 상단 로고/브랜드 - Safe Zone 고려 (상단 100px 이상) */}
+        {/* 상단 로고/브랜드 */}
         <div
           style={{
             position: 'absolute',
-            top: '100px',
-            left: '80px',
+            top: isStory ? '120px' : '100px',
+            left: isStory ? '50%' : '80px',
+            transform: isStory ? 'translateX(-50%)' : 'none',
             display: 'flex',
+            flexDirection: isStory ? 'column' : 'row',
             alignItems: 'center',
-            gap: '15px',
+            gap: isStory ? '10px' : '15px',
           }}
         >
           <div
             style={{
-              fontSize: '36px',
+              fontSize: isStory ? '48px' : '36px',
               fontWeight: 'bold',
               color: 'rgba(255, 255, 255, 0.95)',
               letterSpacing: '2px',
@@ -243,31 +257,32 @@ export async function GET(request: NextRequest) {
           </div>
           <div
             style={{
-              fontSize: '20px',
+              fontSize: isStory ? '24px' : '20px',
               color: 'rgba(255, 255, 255, 0.7)',
+              textAlign: 'center',
             }}
           >
-            AI 기반 특성화고 매칭
+            AI 기반 특성화고·마이스터고 매칭
           </div>
         </div>
 
-        {/* 하단 테스트 유도 문구 - Safe Zone 고려 (하단 100px 이상) */}
+        {/* 하단 테스트 유도 문구 */}
         {isResult && (
           <div
             style={{
               position: 'absolute',
-              bottom: '100px',
+              bottom: isStory ? '200px' : '100px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
               background: 'rgba(255, 255, 255, 0.2)',
-              padding: '15px 30px',
-              borderRadius: '40px',
+              padding: isStory ? '20px 50px' : '15px 30px',
+              borderRadius: '50px',
             }}
           >
             <div
               style={{
-                fontSize: '26px',
+                fontSize: isStory ? '36px' : '26px',
                 color: 'rgba(255, 255, 255, 0.95)',
                 fontWeight: 600,
               }}
@@ -276,11 +291,33 @@ export async function GET(request: NextRequest) {
             </div>
           </div>
         )}
+        
+        {/* 세로형 하단 스와이프 안내 */}
+        {isStory && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '80px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '20px',
+                color: 'rgba(255, 255, 255, 0.5)',
+              }}
+            >
+              ↑ 스와이프하여 테스트 시작
+            </div>
+          </div>
+        )}
       </div>
     ),
     {
-      width: 1200,
-      height: 630,
+      width,
+      height,
     }
   );
 }

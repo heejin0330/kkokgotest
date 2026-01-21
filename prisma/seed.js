@@ -247,7 +247,7 @@ async function updateSchoolData() {
 
     if (ruleError) {
       console.log(`    ❌ ${sd.major?.name} 입시전형 추가 실패:`, ruleError.message);
-    } else {
+      } else {
       console.log(`    ✅ ${sd.major?.name} 입시전형 추가됨`);
     }
   }
